@@ -60,6 +60,38 @@ def calculate_dice(predicted, ground_truth):
     return dice
 
 
+def calculate_NSD(contours_pred, contours_gt, image_shape, dilation_radius=1):
+    # Create binary masks for the predicted and ground truth contours
+    pred_mask = np.zeros(image_shape, dtype=np.uint8)
+    gt_mask = np.zeros(image_shape, dtype=np.uint8)
+
+    # Draw contours on the masks
+    cv2.drawContours(pred_mask, contours_pred, -1, 255, thickness=cv2.FILLED)
+    cv2.drawContours(gt_mask, contours_gt, -1, 255, thickness=cv2.FILLED)
+
+    # Dilate the masks to create a tolerance region
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * dilation_radius + 1, 2 * dilation_radius + 1))
+    dilated_gt_mask = cv2.dilate(gt_mask, kernel)
+    dilated_pred_mask = cv2.dilate(pred_mask, kernel)
+
+    # Count points within the dilated masks
+    pred_in_dilated_gt = np.sum((pred_mask > 0) & (dilated_gt_mask > 0))
+    gt_in_dilated_pred = np.sum((gt_mask > 0) & (dilated_pred_mask > 0))
+
+    # Total number of contour points
+    total_pred_points = np.sum(pred_mask > 0)
+    total_gt_points = np.sum(gt_mask > 0)
+
+    # Compute NSD
+    nsd_pred = pred_in_dilated_gt / total_pred_points if total_pred_points > 0 else 0
+    nsd_gt = gt_in_dilated_pred / total_gt_points if total_gt_points > 0 else 0
+
+    # Final NSD as an average of both directions
+    nsd = (nsd_pred + nsd_gt) / 2
+
+    return nsd
+
+
 def calculate_NSD_MASD(predicted, ground_truth):
     # Scale to 0-255 range
     predicted = (predicted / np.max(predicted) * 255).astype(np.uint8)
@@ -78,7 +110,6 @@ def calculate_NSD_MASD(predicted, ground_truth):
 
     total_distance = 0.0
     total_points = 0
-    total_length_gt = 0.0
 
     # Iterate over all predicted contours
     for pred_contour in contours_pred:
@@ -97,13 +128,10 @@ def calculate_NSD_MASD(predicted, ground_truth):
             distances = [min(distance.cdist([g], np.vstack(pred_contour)).min() for pred_contour in contours_pred) for g in gt_points]
             total_distance += sum(distances)
             total_points += len(gt_points)
-            total_length_gt += cv2.arcLength(gt_contour, closed=True)
 
     # Compute MASD and NASD
     masd = total_distance / total_points if total_points > 0 else 0  # Avoid division by zero
-    average_length_gt = total_length_gt / len(contours_gt) if len(contours_gt) > 0 else 0
-    nsd = masd / average_length_gt if average_length_gt > 0 else 0  
-
+    nsd = calculate_NSD(contours_pred, contours_gt, predicted.shape)  
     return masd, nsd
 
 
@@ -113,7 +141,7 @@ if __name__ == "__main__":
     image = sitk.ReadImage(image_path)
     image_array = sitk.GetArrayFromImage(image)  # Convert to a numpy array (shape: [depth, height, width])
 
-    predicted = image_array[6]
+    predicted = image_array[11]
     ground_truth = image_array[10]  
 
     # Plotting the predicted and ground truth images
@@ -122,7 +150,10 @@ if __name__ == "__main__":
     # Calculating performance metrics
     masd, nsd = calculate_NSD_MASD(predicted, ground_truth)
     dice = calculate_dice(predicted, ground_truth)
-    print(f'Mean Absolute Surface Distance (MASD): {masd}')
+    print(f'Mean Average Surface Distance (MASD): {masd}')
     print(f'Normalized Surface Distance (NSD): {nsd}')
     print(f'Dice Coefficient: {dice}')
+
+
+
     
