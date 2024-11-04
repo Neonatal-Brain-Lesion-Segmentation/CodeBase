@@ -39,8 +39,9 @@ def extract_id(file_name:str) -> str:
 def calculate_volume_percentage(mask):
     return 0
 
-def split_files_gen_csv(source_dir:str, dest_dir, category, gen_csv=False):
-    "Saves 3d files as 2d npy files from a given directory. Can caclulate volume if masks have been provided. Will generate a CSV containing metadata."
+def split_files_gen_csv(source_dir:str, dest_dir:str, category:str, gen_csv:bool=False):
+    """Saves 3d files as 2d npy files from a given directory. Can caclulate volume if masks have been provided. 
+    Will generate a CSV containing metadata."""
 
     meta_df=pd.DataFrame(columns=["Patient ID","Axial Slices", "Coronal Slices", "Sagittal Slices", "Lesion Percentage","Axial Spacing", "Coronal Spacing", "Sagittal Spacing"])
 
