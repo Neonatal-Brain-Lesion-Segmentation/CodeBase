@@ -82,22 +82,22 @@ def calculate_NSD_MASD(predicted, ground_truth):
 
     # Iterate over all predicted contours
     for pred_contour in contours_pred:
-        pred_points = np.vstack(pred_contour)  # Flatten current predicted contour
-
-        # Find minimum distance to all ground truth points
-        distances = [min(distance.cdist([p], np.vstack(gt_contour)).min() for gt_contour in contours_gt) for p in pred_points]
-        total_distance += sum(distances)
-        total_points += len(pred_points)
+        if len(contours_pred) != 0:
+            pred_points = np.vstack(pred_contour)  # Flatten current predicted contour
+            # Find minimum distance to all ground truth points
+            distances = [min(distance.cdist([p], np.vstack(gt_contour)).min() for gt_contour in contours_gt) for p in pred_points]
+            total_distance += sum(distances)
+            total_points += len(pred_points)
 
     # Iterate over all ground truth contours
     for gt_contour in contours_gt:
-        gt_points = np.vstack(gt_contour)  # Flatten current ground truth contour
-
-        # Find minimum distance to all predicted points
-        distances = [min(distance.cdist([g], np.vstack(pred_contour)).min() for pred_contour in contours_pred) for g in gt_points]
-        total_distance += sum(distances)
-        total_points += len(gt_points)
-        total_length_gt += cv2.arcLength(gt_contour, closed=True)
+        if len(contours_gt) != 0:
+            gt_points = np.vstack(gt_contour)  # Flatten current ground truth contour
+            # Find minimum distance to all predicted points
+            distances = [min(distance.cdist([g], np.vstack(pred_contour)).min() for pred_contour in contours_pred) for g in gt_points]
+            total_distance += sum(distances)
+            total_points += len(gt_points)
+            total_length_gt += cv2.arcLength(gt_contour, closed=True)
 
     # Compute MASD and NASD
     masd = total_distance / total_points if total_points > 0 else 0  # Avoid division by zero
@@ -113,8 +113,8 @@ if __name__ == "__main__":
     image = sitk.ReadImage(image_path)
     image_array = sitk.GetArrayFromImage(image)  # Convert to a numpy array (shape: [depth, height, width])
 
-    predicted = image_array[10]
-    ground_truth = image_array[11]  
+    predicted = image_array[6]
+    ground_truth = image_array[10]  
 
     # Plotting the predicted and ground truth images
     plot_gt_pred(predicted, ground_truth)
