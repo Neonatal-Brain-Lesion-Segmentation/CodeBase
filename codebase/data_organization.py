@@ -4,8 +4,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 
-def extract_mha_file(file_path:str,calc_volume=False):
-    """This function disassembles a mha file and returns a numpy array, the spacing, the direction and the origin of the image. 
+def extract_mha_file(file_path:str,calc_volume=False) -> tuple:
+    """This function disassembles an MHA file and returns a numpy array, the spacing, the direction and the origin of the image. 
     If required, this function will be modified to return other parameters mentioned in the the metadata of the mha file."""
     image = sitk.ReadImage(file_path)
     image_array = sitk.GetArrayFromImage(image)
@@ -39,7 +39,7 @@ def extract_id(file_name:str) -> str:
 def calculate_volume_percentage(mask):
     return 0
 
-def split_files_gen_csv(source_dir:str, dest_dir:str, category:str, gen_csv:bool=False):
+def split_files_gen_csv(source_dir:str, dest_dir:str, category:str, gen_csv:bool=False)->None:
     """Saves 3d files as 2d npy files from a given directory. Can caclulate volume if masks have been provided. 
     Will generate a CSV containing metadata."""
 
@@ -63,5 +63,3 @@ def split_files_gen_csv(source_dir:str, dest_dir:str, category:str, gen_csv:bool
             meta_df.loc[len(meta_df.index)] = [uid, num_axial, num_coronal, num_sagittal, volume, spacing_axial, spacing_coronal, spacing_sagittal]
         
     meta_df.to_csv(f"{dest_dir}/metadata.csv", index=False)
-
-

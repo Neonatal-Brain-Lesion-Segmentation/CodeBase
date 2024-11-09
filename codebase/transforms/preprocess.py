@@ -16,12 +16,14 @@ Output File Format: ADC, ZADC and Label Files (.npy)
 ! Lesion Volume Calculation
 '''
 
-def clip(mode, data):
-    if mode == 'ADC':
-        min_clip = 0
-        max_clip = 3400
+def clip(data:np.ndarray, mode:str='ADC', min_clip:float = 0, max_clip:float = 3400) -> np.ndarray:
+    """
+    Clips the ADC values to a certain range [0, 3400] by default. Returns the data if as it is if the mode is not 'ADC'.
+    """
 
+    if mode.upper() == 'ADC':
         data = np.clip(data, min_clip, max_clip)
+
     return data
 
 def resample(data, target_size = 256):
