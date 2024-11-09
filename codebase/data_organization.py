@@ -117,7 +117,7 @@ class Dataset_Sample(BaseDataset):
         return len(self.ids)
 
 
-class HIE_ADC_Dataset(Dataset):
+class HIE_Dataset(Dataset):
     """HIE Dataset Class
     Has a 2d and a 3d option. Both are segmentation tasks. 
     In the 2d option, numpy files are given, in the 3d otpion, numpy files are constructed.
@@ -168,10 +168,7 @@ class HIE_ADC_Dataset(Dataset):
             return image, mask
 
         def __len__(self):
-            if mode == '2d':
-                return len(self.images)
-            else:
-                return len(self.ids)
+            return len(self.images)
             
             
 # l = []
