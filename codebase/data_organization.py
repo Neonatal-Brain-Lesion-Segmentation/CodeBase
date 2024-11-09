@@ -68,56 +68,6 @@ def split_files_gen_csv(source_dir:str, dest_dir:str, category:str, gen_csv:bool
         
     meta_df.to_csv(f"{dest_dir}/metadata.csv", index=False)
 
-class Dataset_Sample(BaseDataset):
-
-    def __init__(
-        self,
-        root,
-        images_dir,
-        masks_dir,
-        csv,
-        aug_fn=None,
-        id_col="DICOM",
-        aug_col="Augmentation",
-        preprocessing_fn=None,
-    ):
-        images_dir = os.path.join(root, images_dir)
-        masks_dir = os.path.join(root, masks_dir)
-        df = pd.read_csv(os.path.join(root, csv))
-        #df = df[df["Pneumothorax"] == 1]
-
-        self.ids = [(r[id_col], r[aug_col]) for i, r in df.iterrows()]
-        self.images = [os.path.join(images_dir, item[0] + ".png") for item in self.ids]
-        self.masks = [
-            os.path.join(masks_dir, item[0] + "_mask.png") for item in self.ids
-        ]
-        self.aug_fn = aug_fn
-        self.preprocessing_fn = preprocessing_fn
-
-    def __getitem__(self, i):
-
-        image = cv2.imread(self.images[i])
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        mask = (cv2.imread(self.masks[i], 0) == 255).astype("float")
-        mask = np.expand_dims(mask, axis=-1)
-
-        #image = image.astype(np.float32)
-
-        aug = self.ids[i][1]
-        # if aug:
-        augmented = self.aug_fn(aug)(image=image, mask=mask)
-        image, mask = augmented["image"], augmented["mask"]
-
-        if self.preprocessing_fn:
-            sample = self.preprocessing_fn(image=image, mask=mask)
-            image, mask = sample["image"], sample["mask"]
-
-        return image, mask
-
-    def __len__(self):
-        return len(self.ids)
-
-
 class HIE_Dataset(Dataset):
     """HIE Dataset Class
     Has a 2d and a 3d option. Both are segmentation tasks. 
