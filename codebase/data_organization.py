@@ -133,30 +133,35 @@ class HIE_ADC_Dataset(Dataset):
         ):
 
         
+        self.images_dir = images_dir
+        self.masks_dir = masks_dir
         self.df = pd.read_csv(csv_file)
         self.mode = mode.lower()
 
         self.ids = self.df['Patient ID'].values
-        self.channels = len(images_dir)
+        self.channels = len(self.images_dir)
 
         if self.mode == '2d':
             # self.images = [i for i in os.listdir(images_dir) if i.endswith('.npy')]
-            self.images = list(zip(*[sorted([i for i in os.listdir(path) if i.endswith('.npy')]) for path in images_dir]))
-            self.masks = sorted([i for i in os.listdir(masks_dir) if i.endswith('.npy')])
+            self.images = list(zip(*[sorted([i for i in os.listdir(path) if i.endswith('.npy')]) for path in self.images_dir]))
+            self.masks = sorted([i for i in os.listdir(self.masks_dir) if i.endswith('.npy')])
         else:
             self.images = self.ids
             self.masks = self.ids
         
         def __getitem__(self, i):
             if mode == '2d':
-                image = np.load(f"{images_dir}/{self.images[i]}")
-                image = np.expand_dims(image, axis=-1)
-                mask = np.load(f"{masks_dir}/{self.masks[i]}")
-                mask = np.expand_dims(mask, axis=-1)
+                image = np.stack([np.load(f"{self.images_dir[n]}/{self.images[i][n]}") for n in range(self.channels)])
+                if self.channels == 1:
+                    image = np.expand_dims(image, axis=0)
+
+                mask = np.load(f"{self.masks_dir}/{self.masks[i]}")
+                mask = np.expand_dims(mask, axis=0)
                 
             else:
-                image = reassemble_to_3d(images_dir, self.images[i])
-                mask = reassemble_to_3d(masks_dir, self.masks[i])
+                # image = reassemble_to_3d(images_dir, self.images[i])
+                image = np.stack([reassemble_to_3d(self.images_dir[n],self.images[i]) for n in range(self.channels)])
+                mask = reassemble_to_3d(self.masks_dir, self.masks[i])
 
             if self.transform:
                 image = self.transform(image)
