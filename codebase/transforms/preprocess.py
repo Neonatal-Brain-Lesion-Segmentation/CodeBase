@@ -67,6 +67,14 @@ def augmentation(data:np.ndarray, augmentation_index:int) -> np.ndarray:
     else:
         return augmentations[augmentation_index](data)
     
+def brain_lesion_percentage(adc_image:np.ndarray, label_image:np.ndarray) -> float:
+    """
+    Calculate the percentage of lesion volume in the brain volume, from the 3D ADC and Label Image
+    """
+    brain_mask = np.where((adc_image >= 1) & (adc_image <= 3400), 1, 0)
+    lesion_mask = np.where(label_image == 1, 1, 0)
+    return np.sum(lesion_mask) / np.sum(brain_mask) * 100
+
 '''
 Per Patient and Per Slice Lesion Volume Calculation
 1. per_slice_lesion_volume(
@@ -82,7 +90,7 @@ Input: ADC Map, Label Map (.npy file)
 Output: Lesion Volume Percentage per Slice and per Patient
 
 ! Assumption: Total Brain Tissue Area is calculated from ADC Maps and .npy files is the file format
-'''
+
 def per_patient_lesion_volume(image_adc, image_label):
     brain_volume_per_slice = []
     lesion_volume_per_slice = []
@@ -116,11 +124,4 @@ def per_slice_lesion_volume(image_adc_slice, label_slice):
 def make_brain_mask(image_adc_slice, lower_bound = 1, upper_bound = 3400):
     brain_mask = np.where((image_adc_slice >= lower_bound) & (image_adc_slice <= upper_bound), 1, 0)
     return brain_mask
-
-def brain_lesion_percentage(adc_image:np.ndarray, label_image:np.ndarray) -> float:
-    """
-    Calculate the percentage of lesion volume in the brain volume, from the 3D ADC and Label Image
-    """
-    brain_mask = np.where((adc_image >= 1) & (adc_image <= 3400), 1, 0)
-    lesion_mask = np.where(label_image == 1, 1, 0)
-    return np.sum(lesion_mask) / np.sum(brain_mask) * 100
+'''
