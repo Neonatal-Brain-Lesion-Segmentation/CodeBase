@@ -125,7 +125,7 @@ class HIE_ADC_Dataset(Dataset):
     """
     def __init__(
             self,
-            images_dir:list[tuple[str,str]],
+            images_dir:list[str],
             masks_dir:str,
             csv_file:str,
             mode:str = '2d',
@@ -151,17 +151,16 @@ class HIE_ADC_Dataset(Dataset):
         
         def __getitem__(self, i):
             if mode == '2d':
+                # C, H, W
                 image = np.stack([np.load(f"{self.images_dir[n]}/{self.images[i][n]}") for n in range(self.channels)])
-                if self.channels == 1:
-                    image = np.expand_dims(image, axis=0)
-
                 mask = np.load(f"{self.masks_dir}/{self.masks[i]}")
-                mask = np.expand_dims(mask, axis=0)
+                mask = np.expand_dims(mask, axis=0) 
                 
             else:
-                # image = reassemble_to_3d(images_dir, self.images[i])
+                # C, D, H, W
                 image = np.stack([reassemble_to_3d(self.images_dir[n],self.images[i]) for n in range(self.channels)])
                 mask = reassemble_to_3d(self.masks_dir, self.masks[i])
+                mask = np.expand_dims(mask, axis=0)
 
             if self.transform:
                 image = self.transform(image)
