@@ -29,6 +29,7 @@ def clip(data:np.ndarray, mode:str='ADC', min_clip:float = 0, max_clip:float = 3
 def resample(data:np.ndarray, padding_mode:str = 'constant', padding_value:float = 0., target_size:int = 256) -> np.ndarray:
     """
     Resizes 2D Slices (numpy arrays) to a target size (256 x 256) by zero padding
+    TODO: Why not albumentations?
     """
     D, H, W = data.shape
 
