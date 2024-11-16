@@ -58,7 +58,7 @@ val_dataset = HIE_Dataset(
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 for i in range(1):
-    epoch_metrics = epoch_runner_image_saver(
+    epoch_metrics = epoch_runner_save_image(
         "val",
         val_loader,
         model,

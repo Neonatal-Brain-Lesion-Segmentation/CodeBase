@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import torch
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 def make_checkpoint_dir(dest_dir: str) -> None:
     """
@@ -115,10 +116,6 @@ def resume_checkpoint(dest_dir: str, model, optimizer, device:str, model_dict:st
 
     return checkpoint["Epoch"], checkpoint["Best Score"], checkpoint["Best Loss"]
 
-import os
-import matplotlib.pyplot as plt
-import torch
-from tqdm import tqdm
 
 def epoch_runner_save_image(description: str, loader: torch.utils.data.DataLoader, model, loss, metrics: list[tuple],
                  optimizer=None, device="cuda", threshold=0.5, save_images=False, save_path="saved_images"):
@@ -170,7 +167,6 @@ def epoch_runner_save_image(description: str, loader: torch.utils.data.DataLoade
                     for i in range(btch_size):
                         # Prepare the image, GT, and PR
                         img = images[i].detach().cpu().numpy()
-                        img = (img - img.min()) / (img.max() - img.min())  # Normalize for visualization
                         
                         gt = labels[i].detach().cpu().numpy()
                         pr = predicted[i].detach().cpu().numpy()
