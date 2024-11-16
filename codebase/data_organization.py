@@ -3,17 +3,20 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
+# import dataset from torch
+import torch
+from torch.utils.data import Dataset
+from typing import Callable
 
-def extract_mha_file(file_path:str,calc_volume=False):
-    """This function disassembles a mha file and returns a numpy array, the spacing, the direction and the origin of the image. 
+def extract_mha_file(file_path:str) -> tuple:
+    """This function disassembles an MHA file and returns a numpy array, the spacing, the direction and the origin of the image. 
     If required, this function will be modified to return other parameters mentioned in the the metadata of the mha file."""
     image = sitk.ReadImage(file_path)
     image_array = sitk.GetArrayFromImage(image)
     spacing = image.GetSpacing()
     direction = image.GetDirection()
     origin = image.GetOrigin()
-    volume = calculate_volume_percentage(image_array) if calc_volume else 0
-    return image_array, spacing[::-1], volume, direction[::-1], origin[::-1]
+    return image_array, spacing[::-1], direction[::-1], origin[::-1]
 
 def save_slices(dest_dir,image_id,image_array,category = '') -> None:
     """Saves 2d Slices as npy files of 3d Image"""
@@ -36,14 +39,19 @@ def extract_id(file_name:str) -> str:
         if i.isdigit():
             return i
 
-def calculate_volume_percentage(mask):
-    return 0
+def calculate_volume_percentage(adc_image:np.ndarray, label_image:np.ndarray) -> float:
+    """
+    Calculate the percentage of lesion volume in the brain volume, from the 3D ADC and Label Image
+    """
+    brain_mask = np.where((adc_image >= 1) & (adc_image <= 3400), 1, 0)
+    lesion_mask = np.where(label_image == 1, 1, 0)
+    return np.sum(lesion_mask) / np.sum(brain_mask) * 100
 
-def split_files_gen_csv(source_dir:str, dest_dir:str, category:str, gen_csv:bool=False):
+def split_files_gen_csv(source_dir:str, dest_dir:str, category:str, gen_csv:bool=False, adc_dir = None)->None:
     """Saves 3d files as 2d npy files from a given directory. Can caclulate volume if masks have been provided. 
     Will generate a CSV containing metadata."""
-
-    meta_df=pd.DataFrame(columns=["Patient ID","Axial Slices", "Coronal Slices", "Sagittal Slices", "Lesion Percentage","Axial Spacing", "Coronal Spacing", "Sagittal Spacing"])
+    if gen_csv and adc_dir is not None:
+        meta_df=pd.DataFrame(columns=["Patient ID","Axial Slices", "Coronal Slices", "Sagittal Slices", "Lesion Percentage","Axial Spacing", "Coronal Spacing", "Sagittal Spacing"])
 
     if not os.path.exists(dest_dir):
         os.makedirs(dest_dir)
@@ -52,16 +60,75 @@ def split_files_gen_csv(source_dir:str, dest_dir:str, category:str, gen_csv:bool
         if not file.endswith('.mha'):
             continue
 
-        image_array, spacing, volume, direction, origin = extract_mha_file(f"{source_dir}/{file}")
+        image_array, spacing, direction, origin = extract_mha_file(f"{source_dir}/{file}")
         uid = extract_id(file)
 
         save_slices(dest_dir,uid,image_array,category)
 
         if gen_csv:
+            # reconstruct 3d image for adc with this UID, and pass that ND MAAK
             num_axial, num_coronal, num_sagittal = image_array.shape
             spacing_axial, spacing_coronal, spacing_sagittal = spacing
+            
+            adc_array = reassemble_to_3d(adc_dir, uid)
+            volume = calculate_volume_percentage(adc_array, image_array)
+
             meta_df.loc[len(meta_df.index)] = [uid, num_axial, num_coronal, num_sagittal, volume, spacing_axial, spacing_coronal, spacing_sagittal]
+
+    if gen_csv:
+        meta_df.to_csv(f"{dest_dir}/metadata.csv", index=False)
+
+class HIE_Dataset(Dataset):
+    """HIE Dataset Class
+    Has a 2d and a 3d option. Both are segmentation tasks. 
+    In the 2d option, numpy files are given, in the 3d otpion, numpy files are constructed.
+    If channels are two, then it is [ADC,ZADC]
+    """
+    def __init__(
+            self,
+            images_dir:list[str],
+            masks_dir:str,
+            csv_file:str,
+            mode:str = '2d',
+            transform:callable = None
+        ):
+
         
-    meta_df.to_csv(f"{dest_dir}/metadata.csv", index=False)
+        self.images_dir = images_dir
+        self.masks_dir = masks_dir
+        self.df = pd.read_csv(csv_file)
+        self.mode = mode.lower()
+        self.transform = transform
 
+        self.ids = self.df['Patient ID'].values
+        self.channels = len(self.images_dir)
 
+        if self.mode == '2d':
+            # self.images = [i for i in os.listdir(images_dir) if i.endswith('.npy')]
+            self.images = list(zip(*[sorted([i for i in os.listdir(path) if i.endswith('.npy')]) for path in self.images_dir]))
+            self.masks = sorted([i for i in os.listdir(self.masks_dir) if i.endswith('.npy')])
+        else:
+            self.images = self.ids
+            self.masks = self.ids
+        
+    def __getitem__(self, i):
+        if self.mode == '2d':
+            # C, H, W
+            image = np.stack([np.load(f"{self.images_dir[n]}/{self.images[i][n]}") for n in range(self.channels)])
+            mask = np.load(f"{self.masks_dir}/{self.masks[i]}")
+            mask = np.expand_dims(mask, axis=0) 
+            
+        else:
+            # C, D, H, W
+            image = np.stack([reassemble_to_3d(self.images_dir[n],str(self.images[i]).zfill(3)) for n in range(self.channels)])
+            mask = reassemble_to_3d(self.masks_dir, str(self.masks[i]).zfill(3))
+            mask = np.expand_dims(mask, axis=0)
+
+        if self.transform:
+            # this has to be worked on
+            image = self.transform(image)
+            mask = self.transform(mask)
+        return image, mask
+
+    def __len__(self):
+        return len(self.images)
