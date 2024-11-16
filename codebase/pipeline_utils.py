@@ -87,7 +87,7 @@ def epoch_runner(description:str, loader:torch.utils.data.DataLoader, model, los
                 postfix = {k:v/sample_count for k,v in epoch_metrics.items()}
                 iterator.set_postfix(postfix)
 
-    return epoch_metrics
+    return {k:v/sample_count for k,v in epoch_metrics.items()}
 
 def resume_checkpoint(dest_dir: str, model, optimizer, device:str, model_dict:str = 'model_state_dict', optimizer_dict = "optimizer_state_dict", epoch:None|int=None, string:str = "", verbose=True) -> dict:
     """
@@ -100,7 +100,7 @@ def resume_checkpoint(dest_dir: str, model, optimizer, device:str, model_dict:st
     if epoch is not None:
         checkpoint = torch.load(f"{dest_dir}/model_epoch_{epoch}{string}.pth",map_location=torch.device(device))
     else:
-        checkpoint = torch.load(f"{dest_dir}/models/latest_model{string}.pth",map_location=torch.device(device))
+        checkpoint = torch.load(f"{dest_dir}/latest_model{string}.pth",map_location=torch.device(device))
     
     model.load_state_dict(checkpoint[model_dict])
     if optimizer is not None:
