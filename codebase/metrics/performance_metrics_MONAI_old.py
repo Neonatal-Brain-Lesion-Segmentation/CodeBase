@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import monai
 from monai.metrics import DiceMetric, compute_average_surface_distance, compute_surface_dice
 from monai.transforms import EnsureType
 import SimpleITK as sitk
@@ -10,9 +11,9 @@ def calculate_metrics_monai(predicted, ground_truth, dilation=3):
     ground_truth = torch.tensor(ground_truth, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
 
     if torch.sum(predicted) == 0 and torch.sum(ground_truth) == 0:
-        return 0, 1, 1
+        return 0, 1, 1   # masd, nsd, dice
     elif torch.sum(predicted) == 0 or torch.sum(ground_truth) == 0:
-        return 0, 1, 0  
+        return 0, 1, 0   # masd, nsd, dice
 
     # Ensure the type is correct for MONAI metrics
     predicted = EnsureType()(predicted)
@@ -21,6 +22,7 @@ def calculate_metrics_monai(predicted, ground_truth, dilation=3):
     # Compute Dice Score
     dice_metric = DiceMetric(include_background=False, reduction="mean")
     dice_metric(y_pred=predicted, y=ground_truth)
+    # msd = monai.metrics.SurfaceDistanceMetric(include_background=False, distance_metric="euclidean")
     dice = dice_metric.aggregate().item()  # Aggregate the result
 
     # Compute MASD using 
@@ -61,5 +63,4 @@ if __name__ == "__main__":
     print(f'Mean Average Surface Distance (MASD): {total_masd/image_array1.shape[0]}')
     print(f'Normalized Surface Distance (NSD): {total_nsd/image_array1.shape[0]}')
     print(f'Dice Coefficient: {total_dice/image_array1.shape[0]}')
-
 
