@@ -16,6 +16,30 @@ Output File Format: ADC, ZADC and Label Files (.npy)
 ! Lesion Volume Calculation
 '''
 
+def crop_to_original(data: np.ndarray, original_size: tuple = (144, 160)) -> np.ndarray:
+    """
+    Crops 2D slices (numpy arrays) from a target size back to the original size.
+    
+    Parameters:
+    - data (np.ndarray): Input array of shape (D, H, W).
+    - original_size (tuple): The target size to crop back to (Height, Width).
+    
+    Returns:
+    - np.ndarray: The cropped array of shape (D, original_size[0], original_size[1]).
+    """
+    D, H, W = data.shape
+    target_height, target_width = original_size
+
+    # Calculate crop indices
+    start_h = (H - target_height) // 2
+    end_h = start_h + target_height
+    start_w = (W - target_width) // 2
+    end_w = start_w + target_width
+
+    # Perform cropping
+    cropped_data = data[:, start_h:end_h, start_w:end_w]
+    return cropped_data
+
 def clip(data:np.ndarray, mode:str='ADC', min_clip:float = 0, max_clip:float = 3400) -> np.ndarray:
     """
     Clips the ADC values to a certain range [0, 3400] by default. Returns the data if as it is if the mode is not 'ADC'.

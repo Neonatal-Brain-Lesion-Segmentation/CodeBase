@@ -100,7 +100,7 @@ class HIE_Dataset(Dataset):
         self.mode = mode.lower()
         self.transform = transform
 
-        self.ids = self.df['Patient ID'].values
+        self.ids = [str(i).zfill(3) for i in self.df['Patient ID'].values]
         self.channels = len(self.images_dir)
 
         if self.mode == '2d':
@@ -112,6 +112,7 @@ class HIE_Dataset(Dataset):
             self.masks = self.ids
         
     def __getitem__(self, i):
+
         if self.mode == '2d':
             # C, H, W
             image = np.stack([np.load(f"{self.images_dir[n]}/{self.images[i][n]}") for n in range(self.channels)])
@@ -120,15 +121,86 @@ class HIE_Dataset(Dataset):
             
         else:
             # C, D, H, W
-            image = np.stack([reassemble_to_3d(self.images_dir[n],str(self.images[i]).zfill(3)) for n in range(self.channels)])
-            mask = reassemble_to_3d(self.masks_dir, str(self.masks[i]).zfill(3))
+            image = np.stack([reassemble_to_3d(self.images_dir[n],self.images[i]) for n in range(self.channels)])
+            mask = reassemble_to_3d(self.masks_dir, self.masks[i])
             mask = np.expand_dims(mask, axis=0)
 
         if self.transform:
             # this has to be worked on
             image = self.transform(image)
             mask = self.transform(mask)
+
         return image, mask
 
     def __len__(self):
         return len(self.images)
+    
+
+#### For the purpose of original size inferencing:
+
+
+# class HIE_Dataset(Dataset):
+#     """HIE Dataset Class
+#     Has a 2d and a 3d option. Both are segmentation tasks. 
+#     In the 2d option, numpy files are given, in the 3d otpion, numpy files are constructed.
+#     If channels are two, then it is [ADC,ZADC]
+#     """
+#     def __init__(
+#             self,
+#             images_dir:list[str],
+#             masks_dir:str,
+#             csv_file:str,
+#             mode:str = '2d',
+#             transform:callable = None,
+#             inference_3d:bool = False
+#         ):
+
+        
+#         self.images_dir = images_dir
+#         self.masks_dir = masks_dir
+#         self.df = pd.read_csv(csv_file)
+#         self.mode = mode.lower()
+#         self.transform = transform
+#         self.inference_3d = inference_3d
+
+#         self.ids = [str(i).zfill(3) for i in self.df['Patient ID'].values]
+#         self.channels = len(self.images_dir)
+
+#         if self.mode == '2d':
+#             # self.images = [i for i in os.listdir(images_dir) if i.endswith('.npy')]
+#             self.images = list(zip(*[sorted([i for i in os.listdir(path) if i.endswith('.npy')]) for path in self.images_dir]))
+#             self.masks = sorted([i for i in os.listdir(self.masks_dir) if i.endswith('.npy')])
+#         else:
+#             self.images = self.ids
+#             self.masks = self.ids
+        
+#     def __getitem__(self, i):
+#         original_shape = None
+
+#         if self.mode == '2d':
+#             # C, H, W
+#             image = np.stack([np.load(f"{self.images_dir[n]}/{self.images[i][n]}") for n in range(self.channels)])
+#             mask = np.load(f"{self.masks_dir}/{self.masks[i]}")
+#             mask = np.expand_dims(mask, axis=0) 
+#             original_shape = image.shape
+            
+#         else:
+#             # C, D, H, W
+#             image = np.stack([reassemble_to_3d(self.images_dir[n],self.images[i]) for n in range(self.channels)])
+#             mask = reassemble_to_3d(self.masks_dir, self.masks[i])
+#             mask = np.expand_dims(mask, axis=0)
+#             original_shape = image[0].shape
+
+#         if self.transform:
+#             # this has to be worked on
+#             image = self.transform(image)
+#             mask = self.transform(mask)
+
+#         if self.inference_3d:
+#             return image, mask, original_shape
+    
+#         return image, mask
+
+#     def __len__(self):
+#         return len(self.images)
+    
