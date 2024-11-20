@@ -5,7 +5,7 @@ import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from data_organization import reassemble_to_3d
-# from transforms.preprocess import resample, crop_to_original
+from transforms.preprocess_v2 import transform_2d, padding
 import monai
 
 def make_checkpoint_dir(dest_dir: str) -> None:
@@ -92,66 +92,66 @@ def epoch_runner(description:str, loader:torch.utils.data.DataLoader, model, los
 
     return {k:v/sample_count for k,v in epoch_metrics.items()}
 
-# def inference_3d_runner(path, label_path, uid_list, model, metrics=None, device="cuda"):
-#     """
-#     Just works for single channel input
-#     STILL A JUGAAD
-#     """
-#     preds_3d = {i: [] for i in uid_list}
-#     masks_3d  = {uid: reassemble_to_3d(label_path, uid) for uid in uid_list}
+def inference_3d_runner(image_paths, label_path, uid_list, modes, model, metrics, device = 'cuda'):
+    """
+    Have not optimized it to take metrics from the user, will do that soon! For now, default metrics are
+    Dice, MASD, and NSD.
+    metrics = [('Dice', monai.metrics.DiceMetric(include_background=True,ignore_empty=False))]
+    """
 
-#     dice_l = []
-#     masd_l = []
-#     nsd_l = []
+    metric_logs = {i[0]:[] for i in metrics}
 
-#     # Initialize tqdm with a dynamic postfix
-#     with tqdm(uid_list, desc="Processing UIDs") as pbar:
-#         for uid in pbar:
-#             image_set = reassemble_to_3d(path, uid)
+    preds_3d = {i: [] for i in uid_list}
+    masks_3d = {uid: reassemble_to_3d(label_path, uid) for uid in uid_list}
 
-#             for i in range(image_set.shape[0]):
-#                 image = np.expand_dims(resample(np.stack([image_set[i]])), axis=0)
-#                 image = torch.tensor(image).to(device)
+    dice_l = []
+    masd_l = []
+    nsd_l = []
 
-#                 output = model(image)
-#                 pred = (output >= 0.5).float()
+    with tqdm(uid_list, desc="Val 3D") as pbar:
+        for uid in pbar:
+            image_set = [reassemble_to_3d(path, uid) for path in image_paths]
+            with torch.no_grad():
+                for i in range(image_set[0].shape[0]):
+                    image = np.expand_dims(transform_2d(np.stack([image_set[j][i] for j in range(len(image_set))]), modes),axis=0)
+                    # image = np.expand_dims(resample(np.stack([image_set[i]])),axis=0)
 
-#                 preds_3d[uid].append(
-#                     crop_to_original(pred.cpu().detach().numpy()[0], original_size=tuple(image_set.shape[1:]))[0]
-#                 )
+                    image = torch.tensor(image).to(device)
 
-#             if len(preds_3d[uid]) == image_set.shape[0]:
-#                 preds_3d[uid] = np.stack(preds_3d[uid])
+                    output = model(image)
+                    pred = (output >= 0.5).float()
 
-#                 # Instantiate metrics
-#                 dice = monai.metrics.DiceMetric(include_background=True, ignore_empty=False)
-#                 masd = monai.metrics.SurfaceDistanceMetric(include_background=False, symmetric=True)
-#                 nsd = monai.metrics.SurfaceDiceMetric(include_background=False, distance_metric="euclidean", class_thresholds=[2])
+                    shape = image_set[0].shape
+                    shape = (1,shape[1],shape[2])
 
-#                 # Prepare tensors
-#                 preds_mask = torch.tensor(preds_3d[uid]).unsqueeze(0).unsqueeze(0)
-#                 true_mask = torch.tensor(masks_3d[uid]).unsqueeze(0).unsqueeze(0)
+                    preds_3d[uid].append(padding(pred.cpu().detach().numpy()[0],target_size=tuple(shape))[0])   
 
-#                 # Calculate metrics
-#                 dice_val = dice(preds_mask, true_mask).item()
-#                 masd_val = masd(preds_mask, true_mask).item()
-#                 nsd_val = nsd(preds_mask, true_mask).item()
+                    if len(preds_3d[uid]) == image_set[0].shape[0]:
+                        preds_3d[uid] = np.stack(preds_3d[uid])
 
-#                 dice_l.append(dice_val)
-#                 masd_l.append(masd_val)
-#                 nsd_l.append(nsd_val)
+                        # dice = monai.metrics.DiceMetric(include_background=True,ignore_empty=False)
+                        # masd = monai.metrics.SurfaceDistanceMetric(include_background=False, symmetric = True)
+                        # nsd = monai.metrics.SurfaceDiceMetric(include_background=False, distance_metric="euclidean", class_thresholds=[2])
 
-#                 # Update tqdm postfix with running mean of metrics
-#                 pbar.set_postfix({
-#                     "Mean Dice": f"{np.mean(dice_l):.4f}",
-#                     "Mean MASD": f"{np.mean(masd_l):.4f}",
-#                     "Mean NSD": f"{np.mean(nsd_l):.4f}"
-#                 })
+                        preds_mask = torch.tensor(preds_3d[uid]).unsqueeze(0).unsqueeze(0)
+                        true_mask = torch.tensor(masks_3d[uid]).unsqueeze(0).unsqueeze(0)
 
-#     return np.mean(dice_l), np.mean(masd_l), np.mean(nsd_l)
+                        for metric in metrics:
+                            val = metric[1](preds_mask, true_mask)
+                            metric_logs[metric[0]].append(val.item())
+                        
+                        pbar.set_postfix({k:np.mean(v) for k,v in metric_logs.items()})
+    
+    return {k:np.mean(v) for k,v in metric_logs.items()}
 
+                        # dice_val = dice(preds_mask,true_mask).item()
+                        # masd_val = masd(preds_mask,true_mask).item()
+                        # nsd_val = nsd(preds_mask,true_mask).item()
+                        # dice_l.append(dice_val)
+                        # masd_l.append(masd_val)
+                        # nsd_l.append(nsd_val)
 
-def resume_checkpoint(dest_dir: str, model, optimizer, device:str, model_dict:str = 'model_state_dict', optimizer_dict = "optimizer_state_dict", epoch:None|int=None, string:str = "", verbose=True) -> dict:
+def resume_checkpoint(dest_dir: str, model, optimizer, device:str, model_dict:str = 'model_state_dict', optimizer_dict = "optimizer_state_dict", epoch:None|int=None, string:str = "", verbose=True, return_list = ["Epoch","Best Score","Best Loss"], return_dict = ["Best 3D Dice","Best 3D MASD","Best 3D NSD"], prefix=False) -> dict:
     """
     Loads a model's and optimzer's state from a checkpoint file. By default, it loads the latest model. 
     However, If an epoch number is present, then it will load the model from that epoch. A string can be added to the model name for better identification.
@@ -160,7 +160,12 @@ def resume_checkpoint(dest_dir: str, model, optimizer, device:str, model_dict:st
     Returns the epoch, best score, and best loss.
     """
     if epoch is not None:
-        checkpoint = torch.load(f"{dest_dir}/model_epoch_{epoch}{string}.pth",map_location=torch.device(device))
+        try:
+            checkpoint = torch.load(f"{dest_dir}/model_epoch_{epoch}{string}.pth",map_location=torch.device(device))
+        except:
+            print("it's a 3d best model")
+            checkpoint = torch.load(f"{dest_dir}/model_epoch_{epoch}{string}_3d.pth",map_location=torch.device(device))
+
     else:
         checkpoint = torch.load(f"{dest_dir}/latest_model{string}.pth",map_location=torch.device(device))
     
@@ -175,8 +180,12 @@ def resume_checkpoint(dest_dir: str, model, optimizer, device:str, model_dict:st
         print("Loaded checkpoint:")
         for key, value in checkpoint.items():
             print(f"{key}: {value}")
-
-    return checkpoint["Epoch"], checkpoint["Best Score"], checkpoint["Best Loss"]
+    
+    return_d = {}
+    for i in return_dict:
+        return_d[i.split(' ')[-1] if prefix==False else i] = checkpoint[i]
+    
+    return tuple([checkpoint[i] for i in return_list]+[return_d])
 
 
 
