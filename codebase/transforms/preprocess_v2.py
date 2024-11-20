@@ -170,8 +170,13 @@ def augmentations(data: np.ndarray) -> np.ndarray:
         11: tio.Compose([tio.transforms.RandomNoise(std=(0, 0.05), p=0.5)]),  # Noise
         12: tio.Compose([tio.transforms.RandomGamma(log_gamma=(-0.3, 0.3), p=1.0)]),  # Gamma
         13: tio.Compose([tio.transforms.RandomGamma(log_gamma=(-0.1, 0.1), p=1.0)]),  # Gamma
+        14: tio.Compose([tio.transforms.RandomAnisotropy(downsampling=(1.1, 1.5), p=1.0), tio.transforms.RandomFlip(axes=(1), flip_probability=1.0)]),  # Anisotropy and Vertical Flip
+        15: tio.Compose([tio.transforms.RandomBlur(std=(0, 0.4), p=1.0), tio.transforms.RandomFlip(axes=(2), flip_probability=1.0)]),  # Blur and Horizontal Flip
+        16: tio.Compose([tio.transforms.RandomNoise(std=(0, 0.01), p=0.5), tio.transforms.RandomFlip(axes=(1, 2), flip_probability=1.0)]),  # Noise and Horizontal Flip, Vertical Flip, and Inversed Stack
+        17: tio.Compose([tio.transforms.RandomGamma(log_gamma=(-0.3, 0.3), p=1.0), tio.transforms.RandomFlip(axes=(0, 1, 2), flip_probability=1.0)]),  # Gamma and Horizontal Flip, Vertical Flip, and Inversed Stack
+        18: tio.Compose([tio.transforms.RandomGamma(log_gamma=(-0.1, 0.1), p=1.0), tio.transforms.RandomFlip(axes=(0, 1), flip_probability=1.0)])  # Gamma and Horizontal Flip, Vertical Flip, and Inversed Stack
     }
-    
+
     random_key = random.randint(0, len(transformations) - 1)
     transformed_data = transformations[random_key](data)
     return transformed_data
