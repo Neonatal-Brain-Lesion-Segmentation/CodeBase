@@ -86,7 +86,7 @@ train_dataset = HIE_Dataset(
     images_dir = [f'{DATA_ROOT}/BONBID2023_Train/2Z_ADC'],
     masks_dir = f'{DATA_ROOT}/BONBID2023_Train/3Label',
     csv_file = f'{DATA_ROOT}/BONBID2023_Train/df.csv',
-    mode = mode,
+    dimension = mode,
     transform=resample
 )
 
@@ -94,7 +94,7 @@ val_dataset = HIE_Dataset(
     images_dir = [f'{DATA_ROOT}/BONBID2023_Val/2Z_ADC'],
     masks_dir = f'{DATA_ROOT}/BONBID2023_Val/3Label',
     csv_file = f'{DATA_ROOT}/BONBID2023_Val/df.csv',
-    mode = mode,
+    dimension = mode,
     transform=resample
 )
 

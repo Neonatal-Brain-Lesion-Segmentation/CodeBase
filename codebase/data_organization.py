@@ -89,21 +89,23 @@ class HIE_Dataset(Dataset):
             images_dir:list[str],
             masks_dir:str,
             csv_file:str,
-            mode:str = '2d',
-            transform:callable = None
+            dimension:str = '2d',
+            transform:callable = None,
+            mode:list[str] = None
         ):
 
         
         self.images_dir = images_dir
         self.masks_dir = masks_dir
         self.df = pd.read_csv(csv_file)
-        self.mode = mode.lower()
+        self.dimension = dimension.lower()
+        self.mode = [i.split('/')[-1].upper() for i in images_dir] if mode == None else mode
         self.transform = transform
 
         self.ids = [str(i).zfill(3) for i in self.df['Patient ID'].values]
         self.channels = len(self.images_dir)
 
-        if self.mode == '2d':
+        if self.dimension == '2d':
             # self.images = [i for i in os.listdir(images_dir) if i.endswith('.npy')]
             self.images = list(zip(*[sorted([i for i in os.listdir(path) if i.endswith('.npy')]) for path in self.images_dir]))
             self.masks = sorted([i for i in os.listdir(self.masks_dir) if i.endswith('.npy')])
@@ -113,7 +115,7 @@ class HIE_Dataset(Dataset):
         
     def __getitem__(self, i):
 
-        if self.mode == '2d':
+        if self.dimension == '2d':
             # C, H, W
             image = np.stack([np.load(f"{self.images_dir[n]}/{self.images[i][n]}") for n in range(self.channels)])
             mask = np.load(f"{self.masks_dir}/{self.masks[i]}")
@@ -127,8 +129,8 @@ class HIE_Dataset(Dataset):
 
         if self.transform:
             # this has to be worked on
-            image = self.transform(image)
-            mask = self.transform(mask)
+            image = self.transform(image,self.mode)
+            mask = self.transform(mask,['LABEL'])
 
         return image, mask
 

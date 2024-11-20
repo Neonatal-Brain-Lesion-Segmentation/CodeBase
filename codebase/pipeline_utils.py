@@ -5,7 +5,7 @@ import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from data_organization import reassemble_to_3d
-from transforms.preprocess import resample, crop_to_original
+# from transforms.preprocess import resample, crop_to_original
 import monai
 
 def make_checkpoint_dir(dest_dir: str) -> None:
@@ -92,63 +92,63 @@ def epoch_runner(description:str, loader:torch.utils.data.DataLoader, model, los
 
     return {k:v/sample_count for k,v in epoch_metrics.items()}
 
-def inference_3d_runner(path, label_path, uid_list, model, metrics=None, device="cuda"):
-    """
-    Just works for single channel input
-    STILL A JUGAAD
-    """
-    preds_3d = {i: [] for i in uid_list}
-    masks_3d  = {uid: reassemble_to_3d(label_path, uid) for uid in uid_list}
+# def inference_3d_runner(path, label_path, uid_list, model, metrics=None, device="cuda"):
+#     """
+#     Just works for single channel input
+#     STILL A JUGAAD
+#     """
+#     preds_3d = {i: [] for i in uid_list}
+#     masks_3d  = {uid: reassemble_to_3d(label_path, uid) for uid in uid_list}
 
-    dice_l = []
-    masd_l = []
-    nsd_l = []
+#     dice_l = []
+#     masd_l = []
+#     nsd_l = []
 
-    # Initialize tqdm with a dynamic postfix
-    with tqdm(uid_list, desc="Processing UIDs") as pbar:
-        for uid in pbar:
-            image_set = reassemble_to_3d(path, uid)
+#     # Initialize tqdm with a dynamic postfix
+#     with tqdm(uid_list, desc="Processing UIDs") as pbar:
+#         for uid in pbar:
+#             image_set = reassemble_to_3d(path, uid)
 
-            for i in range(image_set.shape[0]):
-                image = np.expand_dims(resample(np.stack([image_set[i]])), axis=0)
-                image = torch.tensor(image).to(device)
+#             for i in range(image_set.shape[0]):
+#                 image = np.expand_dims(resample(np.stack([image_set[i]])), axis=0)
+#                 image = torch.tensor(image).to(device)
 
-                output = model(image)
-                pred = (output >= 0.5).float()
+#                 output = model(image)
+#                 pred = (output >= 0.5).float()
 
-                preds_3d[uid].append(
-                    crop_to_original(pred.cpu().detach().numpy()[0], original_size=tuple(image_set.shape[1:]))[0]
-                )
+#                 preds_3d[uid].append(
+#                     crop_to_original(pred.cpu().detach().numpy()[0], original_size=tuple(image_set.shape[1:]))[0]
+#                 )
 
-            if len(preds_3d[uid]) == image_set.shape[0]:
-                preds_3d[uid] = np.stack(preds_3d[uid])
+#             if len(preds_3d[uid]) == image_set.shape[0]:
+#                 preds_3d[uid] = np.stack(preds_3d[uid])
 
-                # Instantiate metrics
-                dice = monai.metrics.DiceMetric(include_background=True, ignore_empty=False)
-                masd = monai.metrics.SurfaceDistanceMetric(include_background=False, symmetric=True)
-                nsd = monai.metrics.SurfaceDiceMetric(include_background=False, distance_metric="euclidean", class_thresholds=[2])
+#                 # Instantiate metrics
+#                 dice = monai.metrics.DiceMetric(include_background=True, ignore_empty=False)
+#                 masd = monai.metrics.SurfaceDistanceMetric(include_background=False, symmetric=True)
+#                 nsd = monai.metrics.SurfaceDiceMetric(include_background=False, distance_metric="euclidean", class_thresholds=[2])
 
-                # Prepare tensors
-                preds_mask = torch.tensor(preds_3d[uid]).unsqueeze(0).unsqueeze(0)
-                true_mask = torch.tensor(masks_3d[uid]).unsqueeze(0).unsqueeze(0)
+#                 # Prepare tensors
+#                 preds_mask = torch.tensor(preds_3d[uid]).unsqueeze(0).unsqueeze(0)
+#                 true_mask = torch.tensor(masks_3d[uid]).unsqueeze(0).unsqueeze(0)
 
-                # Calculate metrics
-                dice_val = dice(preds_mask, true_mask).item()
-                masd_val = masd(preds_mask, true_mask).item()
-                nsd_val = nsd(preds_mask, true_mask).item()
+#                 # Calculate metrics
+#                 dice_val = dice(preds_mask, true_mask).item()
+#                 masd_val = masd(preds_mask, true_mask).item()
+#                 nsd_val = nsd(preds_mask, true_mask).item()
 
-                dice_l.append(dice_val)
-                masd_l.append(masd_val)
-                nsd_l.append(nsd_val)
+#                 dice_l.append(dice_val)
+#                 masd_l.append(masd_val)
+#                 nsd_l.append(nsd_val)
 
-                # Update tqdm postfix with running mean of metrics
-                pbar.set_postfix({
-                    "Mean Dice": f"{np.mean(dice_l):.4f}",
-                    "Mean MASD": f"{np.mean(masd_l):.4f}",
-                    "Mean NSD": f"{np.mean(nsd_l):.4f}"
-                })
+#                 # Update tqdm postfix with running mean of metrics
+#                 pbar.set_postfix({
+#                     "Mean Dice": f"{np.mean(dice_l):.4f}",
+#                     "Mean MASD": f"{np.mean(masd_l):.4f}",
+#                     "Mean NSD": f"{np.mean(nsd_l):.4f}"
+#                 })
 
-    return np.mean(dice_l), np.mean(masd_l), np.mean(nsd_l)
+#     return np.mean(dice_l), np.mean(masd_l), np.mean(nsd_l)
 
 
 def resume_checkpoint(dest_dir: str, model, optimizer, device:str, model_dict:str = 'model_state_dict', optimizer_dict = "optimizer_state_dict", epoch:None|int=None, string:str = "", verbose=True) -> dict:

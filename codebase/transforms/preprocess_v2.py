@@ -26,7 +26,7 @@ def clip(mode:str, data:np.ndarray, min_clip:int = 0, max_clip:int = 3400) -> np
     Returns:
         np.ndarray: Clipped Array
     """
-    if mode == 'ADC':
+    if mode.upper() == 'ADC':
         return np.clip(data, min_clip, max_clip)
     else:
         return data
@@ -49,8 +49,8 @@ def padding(data:np.ndarray,
     D, H, W = data.shape
     target_depth, target_height, target_width = target_size
 
-    if D != target_depth:
-        raise ValueError(f"Invalid Depth: {D} for Target Depth: {target_depth}")
+    # if D != target_depth:
+    #     raise ValueError(f"Invalid Depth: {D} for Target Depth: {target_depth}")
     
     # Padding and Cropping Height and Width
     pad_h, crop_h = max(0, target_height - H), max(0, H - target_height)
@@ -110,7 +110,7 @@ def resample(data:np.ndarray, # Input Data (D x H x W), where D = 1 (2D) or D > 
     D, H, W = data.shape
 
     # If 2D, Add a Channel Dimension (1 x H x W)
-    if mode == '2D' and D == 1:
+    if mode.upper() == '2D' and D == 1:
         target_shape = (D, *target_shape)
 
     # Scaling Factor for Resampling
@@ -122,16 +122,29 @@ def resample(data:np.ndarray, # Input Data (D x H x W), where D = 1 (2D) or D > 
 
     return (resampled_image, output_spacing)
 
-def min_max_normalize(data:np.ndarray, mode:str = 'ADC') -> np.ndarray:
+def min_max_normalize(data:np.ndarray, mode:str) -> np.ndarray:
     """
     Min-Max Normalization of 2D (1 x H x W) and 3D (D x H x W) ADC Maps
     """
-    if mode == 'ADC':
+    if mode.upper() == 'ADC':
         min_value = np.min(data)
         max_value = np.max(data)
         
-        data = (data - min_value) / (max_value - min_value)
+        # data = (data - min_value) / (max_value - min_value)
+        return (data - min_value) / (max_value - min_value + 1e-9)
     return data
+
+def transform_2d(input_array:np.ndarray,mode_list:list[str]):
+
+    if input_array.shape[0] != len(mode_list):
+        raise ValueError(f"Invalid Input Array Shape: {input_array.shape} for Mode List: {mode_list}")
+    
+    padded = padding(input_array)
+    new = []
+    for idx,mode in enumerate(mode_list):
+        new.append(min_max_normalize(clip(mode,padded[idx]),mode))
+
+    return np.array(new)
 
 def adc_augmentation(data:np.ndarray, augmentation_index:int) -> np.ndarray:
     transforms = {
