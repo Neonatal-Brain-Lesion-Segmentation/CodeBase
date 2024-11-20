@@ -91,6 +91,7 @@ class HIE_Dataset(Dataset):
             csv_file:str,
             dimension:str = '2d',
             transform:callable = None,
+            augment:callable = None,
             mode:list[str] = None
         ):
 
@@ -101,6 +102,7 @@ class HIE_Dataset(Dataset):
         self.dimension = dimension.lower()
         self.mode = [i.split('/')[-1].upper() for i in images_dir] if mode == None else mode
         self.transform = transform
+        self.augment = augment
 
         self.ids = [str(i).zfill(3) for i in self.df['Patient ID'].values]
         self.channels = len(self.images_dir)
@@ -128,9 +130,10 @@ class HIE_Dataset(Dataset):
             mask = np.expand_dims(mask, axis=0)
 
         if self.transform:
-            # this has to be worked on
-            image = self.transform(image,self.mode)
-            mask = self.transform(mask,['LABEL'])
+            image, mask = self.transform(image, mask, self.mode)
+        
+        if self.augment:
+            image, mask = self.augment(image, mask)
 
         return image, mask
 

@@ -138,7 +138,7 @@ def min_max_normalize(data:np.ndarray, mode:str) -> np.ndarray:
         return (data - min_value) / (max_value - min_value + 1e-9)
     return data
 
-def transform_2d_inner(input_array: np.ndarray, mode_list: list[str], aug=False, random_key:int|None=None) -> torch.Tensor:
+def transform_2d_inner(input_array: np.ndarray, mode_list: list[str]) -> torch.Tensor:
     """
         Preprocessing Pipeline for 2D ADC Maps
         Args:
@@ -156,32 +156,17 @@ def transform_2d_inner(input_array: np.ndarray, mode_list: list[str], aug=False,
     new = []
     for idx, mode in enumerate(mode_list):
         new.append(min_max_normalize(clip(mode,padded[idx]),mode))
+    
+    return torch.tensor(np.array(new))
 
-    # Add Channel and Convert to Tensor
-    if not aug:
-        return torch.tensor(np.array(new))
-    else:
-        patient = np.expand_dims(np.array(new), axis=1)
-        patient = torch.tensor(patient)
-        return augment(patient,random_key).squeeze(1)
-
-
-
-def transform_2d(input_image: np.ndarray, input_mask: np.ndarray, mode_list: list[str],aug:bool = True) -> tuple[torch.Tensor, torch.Tensor]:
-    random_key = random.randint(0,15)
-    image = transform_2d_inner(input_image, mode_list,aug,random_key)
-    mask = transform_2d_inner(input_mask, ['LABEL'],aug,random_key)
+def transform_2d(input_image: np.ndarray, input_mask: np.ndarray, mode_list: list[str]) -> tuple[torch.Tensor, torch.Tensor]:
+    image = transform_2d_inner(input_image, mode_list)
+    mask = transform_2d_inner(input_mask, ['LABEL'])
     return image, mask
 
-def augment(data: torch.Tensor, random_key:int|None=None) -> torch.Tensor:
-    """
-        Random Augmentations (Flip, Anisotropy, Blur, Noise, Gamma)
-        Args:
-            data (torch.Tensor): Image Array (C x D x H x W)
-        Returns:
-            tensor_data (torch.Tensor): Augmented Image Array (C x D x H x W)
-    """
-    transformations = {
+def augment(image_tensor: torch.Tensor, mask_tensor: torch.Tensor|None = None, unsqueeze=True) -> torch.Tensor:
+
+    augmentation_choices = {
         0: tio.Compose([]),  # No augmentation
         1: tio.Compose([tio.transforms.RandomFlip(axes=(0), flip_probability=1.0)]),  # Inverse the Stack
         2: tio.Compose([tio.transforms.RandomFlip(axes=(1), flip_probability=1.0)]),  # Vertical Flip
@@ -203,10 +188,24 @@ def augment(data: torch.Tensor, random_key:int|None=None) -> torch.Tensor:
         15: tio.Compose([tio.transforms.RandomGamma(log_gamma=(-0.1, 0.1), p=1.0), tio.transforms.RandomFlip(axes=(0, 1), flip_probability=1.0)])  # Gamma and Horizontal Flip, Vertical Flip, and Inversed Stack
     }
 
-    # random_key = random.randint(0, len(transformations) - 1) if random_key is None else random_key
-    transformed_data = transformations[random_key](data)
+    image_tensor = image_tensor.unsqueeze(1) if unsqueeze else image_tensor
+    image = tio.ScalarImage(tensor=image_tensor)  # For continuous values
+    subject_dict = {'image': image}
 
-    return transformed_data
-    # To Tensor
-    # tensor_data = torch.from_numpy(transformed_data).float()
-    # return tensor_data
+    if mask_tensor is not None:
+        mask_tensor = mask_tensor.unsqueeze(1) if unsqueeze else mask_tensor
+        mask = tio.LabelMap(tensor=mask_tensor)      # For labels or masks
+        subject_dict['mask'] = mask
+    
+    subject = tio.Subject(subject_dict)
+
+    random_key = random.randint(0, len(augmentation_choices) - 1)
+    transformed_subject = augmentation_choices[random_key](subject)
+
+    transformed_image = transformed_subject['image'].data
+
+    if mask_tensor is not None:
+        transformed_mask = transformed_subject['mask'].data
+        return transformed_image.squeeze(1), transformed_mask.squeeze(1)
+    
+    return transformed_image.squeeze(1)

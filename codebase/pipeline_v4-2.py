@@ -10,17 +10,16 @@ import monai
 
 from data_organization import HIE_Dataset
 from pipeline_utils import *
-from transforms.preprocess_v2 import transform_2d
+from transforms.preprocess_v3 import transform_2d, augment
 
 import os
 import wandb
 
-# TODO: Make it such that the user can choose how they want the stacking -> ADC, ZADC or Both and in which order?
-# TODO: Make it such that the user can keep a track of the best scores for all metrics (is a lower score better or a higher score better?)
-# and the script should save that model. For NSD new highest score is good, for MASD, new lowest score is good.
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="torchio")
 
 # %%
-
+WANDB_ON = False
 RESUME = 1
 RESUME_EPOCH = None
 NUM_EPOCHS = 10
@@ -43,16 +42,17 @@ DATA_ROOT = "/home/lakes/bonbid-2024/Dataset"
 print(os.getcwd())
 print(os.listdir(DATA_ROOT))
 
-wandb.init(project=f"{mode.upper()}-Segmentation-{ENCODER}-DiceFocal-Stacked",
-           name = "Run-1",
-               config={
-        "mode": mode,
-        "learning_rate": 0.0001,
-        "architecture": ENCODER,
-        "dataset": "BONBID-2024",
-        "epochs": NUM_EPOCHS,
-        "Message":"Changing LRs"
-    },)
+if WANDB_ON:
+    wandb.init(project=f"{mode.upper()}-Segmentation-{ENCODER}-DiceFocal-Stacked",
+            name = "Run-1",
+                config={
+            "mode": mode,
+            "learning_rate": 0.0001,
+            "architecture": ENCODER,
+            "dataset": "BONBID-2024",
+            "epochs": NUM_EPOCHS,
+            "Message":"Changing LRs"
+        },)
 
 # %%
 
@@ -103,7 +103,8 @@ train_dataset = HIE_Dataset(
     masks_dir = f'{DATA_ROOT}/BONBID2024_Train/LABEL',
     csv_file = f'{DATA_ROOT}/BONBID2024_Train/metadata.csv',
     dimension = mode,
-    transform=transform_2d
+    transform=transform_2d,
+    augment=augment
 )
 
 val_dataset = HIE_Dataset(
@@ -155,8 +156,9 @@ for epoch in range(START_EPOCH+1,START_EPOCH+NUM_EPOCHS+1):
                                       ({"Epoch": epoch, "Best Score": best_score, "Best Loss": best_loss, "LR":optimizer.param_groups[0]["lr"]}, ""), 
                                       (metrics_best_3d_dict,"Best 3D "))
     stats_df.to_csv(f"{DEST_DIR}/logs/stats_{START_EPOCH+1}_{ENCODER}.csv", index=False)
-
-    wandb.log(checkpoint)
+    
+    if WANDB_ON:
+        wandb.log(checkpoint)
 
     checkpoint["model_state_dict"] = model.state_dict()
     checkpoint["optimizer_state_dict"] = optimizer.state_dict()
@@ -168,7 +170,8 @@ for epoch in range(START_EPOCH+1,START_EPOCH+NUM_EPOCHS+1):
         print(f"A best model{best_3d if best_3d else ''} has been saved!")
         torch.save(checkpoint, f"{DEST_DIR}/models/model_epoch_{epoch}_{ENCODER}{best_3d if best_3d else ''}.pth")
 
-wandb.finish()
+if WANDB_ON:
+    wandb.finish()
 
 
 

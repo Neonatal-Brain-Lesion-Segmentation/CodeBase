@@ -5,7 +5,7 @@ import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from data_organization import reassemble_to_3d
-from transforms.preprocess_v2 import transform_2d, padding
+from transforms.preprocess_v2 import transform_2d_inner, padding
 import monai
 
 def make_checkpoint_dir(dest_dir: str) -> None:
@@ -113,10 +113,11 @@ def inference_3d_runner(image_paths, label_path, uid_list, modes, model, metrics
             image_set = [reassemble_to_3d(path, uid) for path in image_paths]
             with torch.no_grad():
                 for i in range(image_set[0].shape[0]):
-                    image = np.expand_dims(transform_2d(np.stack([image_set[j][i] for j in range(len(image_set))]), modes),axis=0)
+                    image = transform_2d_inner(np.stack([image_set[j][i] for j in range(len(image_set))]), modes).unsqueeze(0)
                     # image = np.expand_dims(resample(np.stack([image_set[i]])),axis=0)
 
-                    image = torch.tensor(image).to(device)
+                    # image = torch.tensor(image).to(device)
+                    image = image.to(device)
 
                     output = model(image)
                     pred = (output >= 0.5).float()
