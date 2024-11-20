@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.ndimage import zoom
 import torchio as tio
+import random
 
 '''
 Preprocessing Functions (ADC, ZADC and Label Files (.npy) 2D and 3D Compatible)
@@ -146,30 +147,31 @@ def transform_2d(input_array:np.ndarray,mode_list:list[str]):
 
     return np.array(new)
 
-def adc_augmentation(data:np.ndarray, augmentation_index:int) -> np.ndarray:
-    transforms = {
-        0 : [],
-        1 : tio.RandomFlip(axes = (0, 1, 2), flip_probability = 1.0), 
-        # 1 : tio.RandomFlip(axes=(0, 1), flip_probability=1.0), 
-        2: tio.RandomAffine(scales=(0.7, 1.3), degrees=15, translation=15, p=1.0),
-        # 2: tio.RandomAffine(scales=(0.9, 1.1), degrees=5, translation=10, p=1.0),
-        3 : tio.RandomBlur(std=(0.5, 2.0), p=1.0),
-        4 : tio.RandomGamma(log_gamma=(-0.3, 0.3), p=1.0),
-        5 : tio.RandomNoise(std=(0, 0.02), p=1.0),
-        6 : tio.RandomAnisotropy(downsampling=(1.2, 2.0), p=1.0)
+def augmentations(data: np.ndarray) -> np.ndarray:
+    """
+        Random Augmentations (Flip, Anisotropy, Blur, Noise, Gamma)
+        Args:
+            data (np.ndarray): 2d or 3D Image Array
+        Returns:
+            np.ndarray: Augmented Image Array
+    """
+    transformations = {
+        0: tio.Compose([]),  # No augmentation
+        1: tio.Compose([tio.transforms.RandomFlip(axes=(0), flip_probability=1.0)]),  # Inverse the Stack
+        2: tio.Compose([tio.transforms.RandomFlip(axes=(1), flip_probability=1.0)]),  # Vertical Flip
+        3: tio.Compose([tio.transforms.RandomFlip(axes=(2), flip_probability=1.0)]),  # Horizontal Flip
+        4: tio.Compose([tio.transforms.RandomFlip(axes=(0, 1), flip_probability=1.0)]),  # Vertical Flip and Inversed Stack
+        5: tio.Compose([tio.transforms.RandomFlip(axes=(0, 2), flip_probability=1.0)]),  # Horizontal Flip and Inversed Stack
+        6: tio.Compose([tio.transforms.RandomFlip(axes=(1, 2), flip_probability=1.0)]),  # Horizontal Flip and Vertical Flip
+        7: tio.Compose([tio.transforms.RandomFlip(axes=(0, 1, 2), flip_probability=1.0)]),  # Horizontal Flip, Vertical Flip, and Inversed Stack
+        8: tio.Compose([tio.transforms.RandomAnisotropy(downsampling=(1.1, 1.5), p=1.0)]),  # Anisotropy
+        9: tio.Compose([tio.transforms.RandomBlur(std=(0, 0.4), p=1.0)]),  # Blur
+        10: tio.Compose([tio.transforms.RandomNoise(std=(0, 0.01), p=0.5)]),  # Noise
+        11: tio.Compose([tio.transforms.RandomNoise(std=(0, 0.05), p=0.5)]),  # Noise
+        12: tio.Compose([tio.transforms.RandomGamma(log_gamma=(-0.3, 0.3), p=1.0)]),  # Gamma
+        13: tio.Compose([tio.transforms.RandomGamma(log_gamma=(-0.1, 0.1), p=1.0)]),  # Gamma
     }
-    return tio.Compose(transforms[augmentation_index])(data)
-
-def zadc_augmentation(data:np.ndarray, augmentation_index:int) -> np.ndarray:
-    transforms = {
-        0 : [],
-        1 : tio.RandomFlip(axes = (0, 1, 2), flip_probability = 1.0), 
-        # 1 : tio.RandomFlip(axes=(0, 1), flip_probability=1.0), 
-        2 : tio.RandomAffine(scales=(0.7, 1.3), degrees=15, translation=15, p=1.0),
-        # 2 : tio.RandomAffine(scales=(0.9, 1.1), degrees=5, translation=10, p=1.0),
-        3 : tio.RandomGamma(log_gamma=(-0.1, 0.1), p=1.0),
-        4 : tio.RandomAnisotropy(downsampling=(1.2, 2.0), p=1.0),
-        5 : tio.RandomNoise(std=(0, 0.01), p=1.0),
-        6 : tio.RandomBlur(std=(0, 0.5), p=1.0)
-    }
-    return tio.Compose(transforms[augmentation_index])(data)
+    
+    random_key = random.randint(0, len(transformations) - 1)
+    transformed_data = transformations[random_key](data)
+    return transformed_data
