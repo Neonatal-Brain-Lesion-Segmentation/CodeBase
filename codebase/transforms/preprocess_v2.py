@@ -2,6 +2,7 @@ import numpy as np
 from scipy.ndimage import zoom
 import torchio as tio
 import random
+import torch
 
 '''
 Preprocessing Functions (ADC, ZADC and Label Files (.npy) 2D and 3D Compatible)
@@ -135,25 +136,39 @@ def min_max_normalize(data:np.ndarray, mode:str) -> np.ndarray:
         return (data - min_value) / (max_value - min_value + 1e-9)
     return data
 
-def transform_2d(input_array:np.ndarray,mode_list:list[str]):
+def transform_2d(input_array: np.ndarray, mode_list: list[str]) -> torch.Tensor:
+    """
+        Preprocessing Pipeline for 2D ADC Maps
+        Args:
+            input_array (np.ndarray): Input Array (D x H x W)
+            mode_list (list[str]): List of Modes for each Slice
 
+        Returns:
+            torch.Tensor: Preprocessed Tensor (D x H x W)
+    """
     if input_array.shape[0] != len(mode_list):
         raise ValueError(f"Invalid Input Array Shape: {input_array.shape} for Mode List: {mode_list}")
     
     padded = padding(input_array)
+
     new = []
-    for idx,mode in enumerate(mode_list):
+    for idx, mode in enumerate(mode_list):
         new.append(min_max_normalize(clip(mode,padded[idx]),mode))
 
-    return np.array(new)
+    # Add Channel and Convert to Tensor
+    patient = np.expand_dims(np.array(new), axis=1)
+    patient = torch.tensor(patient)
+    # Augment
+    augmented = augment(patient)
+    return augmented.squeeze(1)
 
-def augmentations(data: np.ndarray) -> np.ndarray:
+def augment(data: torch.Tensor) -> torch.Tensor:
     """
         Random Augmentations (Flip, Anisotropy, Blur, Noise, Gamma)
         Args:
-            data (np.ndarray): 2d or 3D Image Array
+            data (torch.Tensor): Image Array (C x D x H x W)
         Returns:
-            np.ndarray: Augmented Image Array
+            tensor_data (torch.Tensor): Augmented Image Array (C x D x H x W)
     """
     transformations = {
         0: tio.Compose([]),  # No augmentation
@@ -179,4 +194,7 @@ def augmentations(data: np.ndarray) -> np.ndarray:
 
     random_key = random.randint(0, len(transformations) - 1)
     transformed_data = transformations[random_key](data)
-    return transformed_data
+
+    # To Tensor
+    tensor_data = torch.from_numpy(transformed_data).float()
+    return tensor_data
