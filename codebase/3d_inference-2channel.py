@@ -4,7 +4,7 @@ import monai
 
 from data_organization import HIE_Dataset, reassemble_to_3d
 from pipeline_utils import *
-from transforms.preprocess_v2 import transform_2d, padding
+from transforms.preprocess_v3 import transform_2d_inner, padding
 
 import pandas as pd
 import numpy as np
@@ -26,7 +26,7 @@ model = smp.Unet(
 
 model.to(DEVICE)
 
-checkpoint = torch.load("/Users/amograo/Desktop/HIE-BONBID-24/2D_densenet161-DiceFocal-Stacked/models/model_epoch_57_densenet161.pth",map_location=torch.device(DEVICE))    
+checkpoint = torch.load("/Users/amograo/Downloads/model_epoch_180_densenet161_3d.pth",map_location=torch.device(DEVICE))    
 model.load_state_dict(checkpoint['model_state_dict'])
 
 
@@ -43,13 +43,14 @@ masks_3d = {uid: reassemble_to_3d(f'{DATA_ROOT}/BONBID2024_Val/LABEL', uid) for 
 dice_l = []
 masd_l = []
 nsd_l = []
+model.eval()
 image_paths = [f'{DATA_ROOT}/BONBID2024_Val/ADC',f'{DATA_ROOT}/BONBID2024_Val/Z_ADC'] #f'{DATA_ROOT}/BONBID2024_Val/ADC',
 for uid in uids:
     image_set = [reassemble_to_3d(path, uid) for path in image_paths]
     # image_set = reassemble_to_3d(f'{DATA_ROOT}/BONBID2024_Val/Z_ADC', uid)
 
     for i in range(image_set[0].shape[0]):
-        image = np.expand_dims(transform_2d(np.stack([image_set[j][i] for j in range(len(image_set))]),['ADC','Z_ADC']),axis=0)
+        image = np.expand_dims(transform_2d_inner(np.stack([image_set[j][i] for j in range(len(image_set))]),['ADC','Z_ADC']),axis=0)
         # image = np.expand_dims(resample(np.stack([image_set[i]])),axis=0)
 
         image = torch.tensor(image).to(DEVICE)
@@ -63,7 +64,7 @@ for uid in uids:
         shape = (1,shape[1],shape[2])
         # print(shape)
 
-        preds_3d[uid].append(padding(pred.cpu().detach().numpy()[0],target_size=tuple(shape))[0])    
+        preds_3d[uid].append(padding(pred.detach().cpu().numpy()[0],target_size=tuple(shape))[0])    
 
 
         # print(pred.shape)

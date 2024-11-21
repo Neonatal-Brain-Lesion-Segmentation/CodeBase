@@ -108,6 +108,7 @@ def inference_3d_runner(image_paths, label_path, uid_list, modes, model, metrics
     masd_l = []
     nsd_l = []
 
+    model.eval()
     with tqdm(uid_list, desc="Val 3D") as pbar:
         for uid in pbar:
             image_set = [reassemble_to_3d(path, uid) for path in image_paths]
@@ -125,7 +126,7 @@ def inference_3d_runner(image_paths, label_path, uid_list, modes, model, metrics
                     shape = image_set[0].shape
                     shape = (1,shape[1],shape[2])
 
-                    preds_3d[uid].append(padding(pred.cpu().detach().numpy()[0],target_size=tuple(shape))[0])   
+                    preds_3d[uid].append(padding(pred.detach().cpu().numpy()[0],target_size=tuple(shape))[0])   
 
                     if len(preds_3d[uid]) == image_set[0].shape[0]:
                         preds_3d[uid] = np.stack(preds_3d[uid])
