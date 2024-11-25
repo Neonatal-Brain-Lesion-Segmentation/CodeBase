@@ -1,2 +1,12 @@
-2D_swin
-__pycache__
+.gitignore
+input/
+data_dir/
+env_hie/
+output/
+submission/
+test_saving/
+test_logics/
+model_epoch_67_se_resnext101_32x4d.pth
+testing_logics/
+codebase/.DS_Store
+.DS_Store
