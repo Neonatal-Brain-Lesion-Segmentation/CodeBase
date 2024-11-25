@@ -6,27 +6,69 @@ from data_organization import HIE_Dataset, reassemble_to_3d
 from pipeline_utils import *
 from transforms.preprocess_v3 import transform_2d_inner, padding
 
+from models.vision_transformer import SwinUnet
+from models.config import get_config 
+
 import pandas as pd
 import numpy as np
 
+import matplotlib.pyplot as plt
+
+def show_all_slices_in_grid(gt_masks, pred_masks, pairs_per_row=4):
+    """
+    Display all GT Mask and Predicted Mask slices in a grid with specified pairs per row.
+
+    Parameters:
+    gt_masks (numpy array): Ground truth masks with shape (num_slices, height, width)
+    pred_masks (numpy array): Predicted masks with shape (num_slices, height, width)
+    pairs_per_row (int): Number of image pairs per row
+    """
+    num_slices = gt_masks.shape[0]
+    rows = (num_slices + pairs_per_row - 1) // pairs_per_row  # Calculate the number of rows needed
+    
+    fig, axes = plt.subplots(rows, pairs_per_row * 2, figsize=(20, rows * 5))
+    
+    for i in range(num_slices):
+        row = i // pairs_per_row
+        col = (i % pairs_per_row) * 2
+        
+        axes[row, col].imshow(gt_masks[i], cmap='gray')
+        axes[row, col].set_title(f'GT Mask - Slice {i}')
+        axes[row, col].axis('off')
+        
+        axes[row, col + 1].imshow(pred_masks[i], cmap='gray')
+        axes[row, col + 1].set_title(f'Predicted Mask - Slice {i}')
+        axes[row, col + 1].axis('off')
+    
+    # Hide any unused subplots
+    for j in range(num_slices, rows * pairs_per_row):
+        row = j // pairs_per_row
+        col = (j % pairs_per_row) * 2
+        axes[row, col].axis('off')
+        axes[row, col + 1].axis('off')
+    
+    plt.tight_layout()
+    plt.show()
 
 DEVICE = "cuda" if torch.cuda.is_available() else "mps" if torch.mps.is_available() else "cpu"
 print(DEVICE)
 # ENCODER = "se_resnext101_32x4d"
-ENCODER = "densenet161"
-DATA_ROOT = "/Users/amograo/Desktop/DATASET"
+ENCODER = "swin"
+DATA_ROOT = "../DATASET"
 
-model = smp.Unet(
-    encoder_name=ENCODER,
-    encoder_weights=None,     
-    in_channels=2,             
-    classes=1,
-    activation='sigmoid'               
+config_path = "codebase/models/config.yaml"  # Replace with the path to the new YAML file
+config = get_config(config_path)
+
+model = SwinUnet(
+    config=config,          # Model configuration
+    img_size=config.DATA.IMG_SIZE,
+    num_classes=1,          # Number of output classes
+    zero_head=False,        # Whether to use a zero-initialized head
+    vis=False               # Enable visualization mode if needed
 )
-
 model.to(DEVICE)
 
-checkpoint = torch.load("/Users/amograo/Downloads/model_epoch_180_densenet161_3d.pth",map_location=torch.device(DEVICE))    
+checkpoint = torch.load("/Users/jiabhargava/Documents/Plaksha/dl/CodeBase/2D_swin/models/model_epoch_2_swin_3d.pth",map_location=torch.device(DEVICE))    
 model.load_state_dict(checkpoint['model_state_dict'])
 
 
@@ -74,6 +116,7 @@ for uid in uids:
             dice = monai.metrics.DiceMetric(include_background=True,ignore_empty=False)
             masd = monai.metrics.SurfaceDistanceMetric(include_background=False, symmetric = True)
             nsd = monai.metrics.SurfaceDiceMetric(include_background=False, distance_metric="euclidean", class_thresholds=[2])
+            show_all_slices_in_grid(masks_3d[uid],preds_3d[uid])
             preds_mask = torch.tensor(preds_3d[uid]).unsqueeze(0).unsqueeze(0)
             true_mask = torch.tensor(masks_3d[uid]).unsqueeze(0).unsqueeze(0)
             print(uid)

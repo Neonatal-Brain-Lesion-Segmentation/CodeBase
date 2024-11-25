@@ -1,0 +1,17 @@
+MODEL:
+  TYPE: swin
+  NAME: swin_tiny_patch4_window7_224
+  DROP_PATH_RATE: 0.2
+  PRETRAIN_CKPT: null  # No pretrained weights
+  SWIN:
+    FINAL_UPSAMPLE: "expand_first"
+    EMBED_DIM: 64  # Reduced embedding dimension
+    DEPTHS: [ 2, 2, 2, 2 ]  # Keep the encoder depths the same
+    DECODER_DEPTHS: [ 1, 1, 1, 1 ]  # Reduce decoder depths
+    NUM_HEADS: [ 2, 4, 8, 16 ]  # Reduce the number of attention heads    
+    WINDOW_SIZE: 4  # Smaller window size
+    IN_CHANS: 2
+DATA:
+  IMG_SIZE: 256
+TRAIN:
+  USE_CHECKPOINT: False
