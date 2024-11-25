@@ -68,8 +68,14 @@ for uid in uids:
 
         output = model(image)
         output_2 = model_2(image)
+        pred_1 = (output >= 0.5).float()
+        pred_2 = (output_2 >= 0.5).float()
+        # pred = (output * output_2)
+
         pred = ((output + output_2) >= 1).float()
-        # pred = (output + >= 0.5).float()
+      
+        # pred = ((output + output_2) >= 1).float()
+        # # pred = (output + >= 0.5).float()
 
         # print(image_set[0].shape)
         # print(list(image_set[0].shape))
