@@ -13,11 +13,15 @@ org_array = sitk.GetArrayFromImage(org_img)
 print(array.shape)
 print(org_array.shape)
 
+print(array.dtype)
+print(org_array.dtype)
+
+
 # Plot the Original and Predicted Image (Slices side by side)
-for i in range(array.shape[0]):
-    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-    ax[0].imshow(org_array[i], cmap='gray')
-    ax[0].set_title('Original Image')
-    ax[1].imshow(array[i], cmap='gray')
-    ax[1].set_title('Predicted Image')
-    plt.show()
+# for i in range(array.shape[0]):
+#     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+#     ax[0].imshow(org_array[i], cmap='gray')
+#     ax[0].set_title('Original Image')
+#     ax[1].imshow(array[i], cmap='gray')
+#     ax[1].set_title('Predicted Image')
+#     plt.show()
