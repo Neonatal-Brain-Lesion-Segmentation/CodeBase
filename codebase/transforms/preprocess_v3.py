@@ -156,7 +156,7 @@ def transform_2d_inner(input_array: np.ndarray, mode_list: list[str]) -> torch.T
     new = []
     for idx, mode in enumerate(mode_list):
         new.append(min_max_normalize(clip(mode,padded[idx]),mode))
-    
+
     return torch.tensor(np.array(new))
 
 def transform_2d(input_image: np.ndarray, input_mask: np.ndarray, mode_list: list[str]) -> tuple[torch.Tensor, torch.Tensor]:

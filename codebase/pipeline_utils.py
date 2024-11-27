@@ -5,7 +5,7 @@ import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from data_organization import reassemble_to_3d
-from transforms.preprocess_v2 import transform_2d_inner, padding
+from transforms.preprocess_v3 import transform_2d_inner, padding
 import monai
 
 def make_checkpoint_dir(dest_dir: str) -> None:
