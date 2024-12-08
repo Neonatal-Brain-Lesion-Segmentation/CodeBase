@@ -7,9 +7,6 @@ from pipeline_utils import *
 from transforms.preprocess_v3 import transform_2d_inner, padding, resample
 from transforms.preprocess_v1 import brain_lesion_percentage
 
-from transunet.vit_seg_modeling import VisionTransformer as ViT_seg
-from transunet.vit_seg_modeling import CONFIGS as CONFIGS_ViT_seg
-
 import pandas as pd
 import numpy as np
 
@@ -70,13 +67,6 @@ model = smp.UnetPlusPlus(
     decoder_attention_type='scse'
 )
 
-
-
-# config_vit = CONFIGS_ViT_seg['R50-ViT-B_16']
-# config_vit.n_classes = 1
-# config_vit.n_skip = 3
-
-# model = ViT_seg(config_vit, img_size=256, num_classes=config_vit.n_classes)
 
 model.to(DEVICE)
 # 125, 
