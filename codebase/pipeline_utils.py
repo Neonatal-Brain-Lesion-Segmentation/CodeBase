@@ -5,10 +5,9 @@ import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from data_organization import reassemble_to_3d
-from transforms.preprocess_v3 import transform_2d_inner, padding
+from transforms.preprocess_v3 import transform_2d_inner, padding, resample
 import monai
 import torch.nn as nn
-
 
 def initialize_weights(model, initialization='xavier_uniform'):
     """
@@ -70,7 +69,7 @@ def append_metrics_to_df(df: pd.DataFrame, *args: tuple[dict, str]) -> dict:
 
     return combined_metrics
 
-def epoch_runner(description:str, loader:torch.utils.data.DataLoader, model, loss, metrics:list[tuple], optimizer=None, device="cuda", threshold=0.5):
+def epoch_runner(description:str, loader:torch.utils.data.DataLoader, model, loss, metrics:list[tuple], optimizer=None, device="cuda", activation=False,threshold=0.5):
 
     sample_count = 0
 
@@ -98,6 +97,9 @@ def epoch_runner(description:str, loader:torch.utils.data.DataLoader, model, los
                     optimizer.zero_grad()
 
                 outputs = model.forward(images)
+                if activation == True:
+                    outputs = torch.sigmoid(outputs) ## remove
+
                 loss_value = loss(outputs, labels)
 
                 epoch_metrics["Loss"] += btch_size*loss_value.item()
@@ -119,7 +121,7 @@ def epoch_runner(description:str, loader:torch.utils.data.DataLoader, model, los
 
     return {k:v/sample_count for k,v in epoch_metrics.items()}
 
-def inference_3d_runner(image_paths, label_path, uid_list, modes, model, metrics, device = 'cuda'):
+def inference_3d_runner(image_paths, label_path, uid_list, modes, model, metrics, device = 'cuda', activation = False):
     """
     Have not optimized it to take metrics from the user, will do that soon! For now, default metrics are
     Dice, MASD, and NSD.
@@ -148,12 +150,16 @@ def inference_3d_runner(image_paths, label_path, uid_list, modes, model, metrics
                     image = image.to(device)
 
                     output = model(image)
+                    if activation==True:
+                        output = torch.sigmoid(output)
+                        
                     pred = (output >= 0.5).float()
 
                     shape = image_set[0].shape
                     shape = (1,shape[1],shape[2])
 
-                    preds_3d[uid].append(padding(pred.detach().cpu().numpy()[0],target_size=tuple(shape))[0])   
+                    # preds_3d[uid].append(padding(pred.cpu().detach().numpy()[0],target_size=tuple(shape))[0])   
+                    preds_3d[uid].append(resample(pred.cpu().detach().numpy()[0],target_shape=tuple(shape))[0])   
 
                     if len(preds_3d[uid]) == image_set[0].shape[0]:
                         preds_3d[uid] = np.stack(preds_3d[uid])
@@ -180,7 +186,7 @@ def inference_3d_runner(image_paths, label_path, uid_list, modes, model, metrics
                         # masd_l.append(masd_val)
                         # nsd_l.append(nsd_val)
 
-def resume_checkpoint(dest_dir: str, model, optimizer, device:str, model_dict:str = 'model_state_dict', optimizer_dict = "optimizer_state_dict", epoch:None|int=None, string:str = "", verbose=True, return_list = ["Epoch","Best Score","Best Loss"], return_dict = ["Best 3D Dice","Best 3D MASD","Best 3D NSD"], prefix=False) -> dict:
+def resume_checkpoint(dest_dir: str, model, optimizer, scheduler=None, device:str="cuda", model_dict:str = 'model_state_dict', optimizer_dict = "optimizer_state_dict", scheduler_dict="scheduler_state_dict", epoch:None|int=None, string:str = "", verbose=True, return_list = ["Epoch","Best Score","Best Loss"], return_dict = ["Best 3D Dice","Best 3D MASD","Best 3D NSD"], prefix=False) -> dict:
     """
     Loads a model's and optimzer's state from a checkpoint file. By default, it loads the latest model. 
     However, If an epoch number is present, then it will load the model from that epoch. A string can be added to the model name for better identification.
@@ -201,6 +207,9 @@ def resume_checkpoint(dest_dir: str, model, optimizer, device:str, model_dict:st
     model.load_state_dict(checkpoint[model_dict])
     if optimizer is not None:
         optimizer.load_state_dict(checkpoint[optimizer_dict])
+
+    if scheduler is not None:
+        scheduler.load_state_dict(checkpoint[scheduler_dict])
 
     del checkpoint[model_dict]
     del checkpoint[optimizer_dict]
@@ -301,4 +310,5 @@ def epoch_runner_save_image(description: str, loader: torch.utils.data.DataLoade
                 iterator.set_postfix(postfix)
 
     return epoch_metrics
+
 
