@@ -7,6 +7,33 @@ import matplotlib.pyplot as plt
 from data_organization import reassemble_to_3d
 from transforms.preprocess_v3 import transform_2d_inner, padding
 import monai
+import torch.nn as nn
+
+
+def initialize_weights(model, initialization='xavier_uniform'):
+    """
+    Initialize the weights of a PyTorch model using Xavier initialization,
+    with appropriate handling for different tensor dimensions.
+    
+    Args:
+        model: PyTorch model
+        initialization: str, either 'xavier_uniform' or 'xavier_normal'
+    """
+    for name, module in model.named_modules():
+        if hasattr(module, 'weight') and module.weight is not None:
+            if len(module.weight.shape) >= 2:
+                if initialization == 'xavier_uniform':
+                    nn.init.xavier_uniform_(module.weight)
+                else:
+                    nn.init.xavier_normal_(module.weight)
+            else:
+                # For 1D tensors (like in LayerNorm), use normal initialization
+                nn.init.normal_(module.weight, mean=1., std=0.02)
+            
+            if hasattr(module, 'bias') and module.bias is not None:
+                nn.init.zeros_(module.bias)
+                
+        print(f"Initialized {name}: {module.__class__.__name__} with shape {module.weight.shape if hasattr(module, 'weight') else 'no weight'}")
 
 def make_checkpoint_dir(dest_dir: str) -> None:
     """

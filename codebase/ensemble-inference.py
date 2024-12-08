@@ -8,15 +8,49 @@ from transforms.preprocess_v3 import transform_2d_inner, padding
 
 import pandas as pd
 import numpy as np
+def show_all_slices_in_grid(gt_masks, pred_masks, pairs_per_row=4):
+    """
+    Display all GT Mask and Predicted Mask slices in a grid with specified pairs per row.
 
+    Parameters:
+    gt_masks (numpy array): Ground truth masks with shape (num_slices, height, width)
+    pred_masks (numpy array): Predicted masks with shape (num_slices, height, width)
+    pairs_per_row (int): Number of image pairs per row
+    """
+    num_slices = gt_masks.shape[0]
+    rows = (num_slices + pairs_per_row - 1) // pairs_per_row  # Calculate the number of rows needed
+    
+    fig, axes = plt.subplots(rows, pairs_per_row * 2, figsize=(20, rows * 5))
+    
+    for i in range(num_slices):
+        row = i // pairs_per_row
+        col = (i % pairs_per_row) * 2
+        
+        axes[row, col].imshow(gt_masks[i], cmap='gray')
+        axes[row, col].set_title(f'GT Mask - Slice {i}')
+        axes[row, col].axis('off')
+        
+        axes[row, col + 1].imshow(pred_masks[i], cmap='gray')
+        axes[row, col + 1].set_title(f'Predicted Mask - Slice {i}')
+        axes[row, col + 1].axis('off')
+    
+    # Hide any unused subplots
+    for j in range(num_slices, rows * pairs_per_row):
+        row = j // pairs_per_row
+        col = (j % pairs_per_row) * 2
+        axes[row, col].axis('off')
+        axes[row, col + 1].axis('off')
+    
+    plt.tight_layout()
+    plt.show()
 
 DEVICE = "cuda" if torch.cuda.is_available() else "mps" if torch.mps.is_available() else "cpu"
 print(DEVICE)
-ENCODER_2 = "se_resnext101_32x4d"
+ENCODER_2 = "inceptionv4"
 ENCODER = "densenet161"
 DATA_ROOT = "/Users/amograo/Desktop/DATASET"
 
-model = smp.Unet(
+model = smp.UnetPlusPlus(
     encoder_name=ENCODER,
     encoder_weights=None,     
     in_channels=2,             
@@ -24,7 +58,7 @@ model = smp.Unet(
     activation='sigmoid'               
 )
 
-model_2 = smp.Unet(
+model_2 = smp.UnetPlusPlus(
     encoder_name=ENCODER_2,
     encoder_weights=None,     
     in_channels=2,             
@@ -35,8 +69,8 @@ model_2 = smp.Unet(
 model.to(DEVICE)
 model_2.to(DEVICE)
 
-checkpoint = torch.load("/Users/amograo/Downloads/model_epoch_180_densenet161_3d.pth",map_location=torch.device(DEVICE))    
-checkpoint_2 = torch.load("/Users/amograo/Downloads/model_epoch_191_se_resnext101_32x4d.pth",map_location=torch.device(DEVICE))
+checkpoint = torch.load("/Users/amograo/Desktop/HIE-BONBID-24/UNetPP-2D_densenet161-Aug-Stacked/models/model_epoch_235_densenet161_3d.pth",map_location=torch.device(DEVICE))    
+checkpoint_2 = torch.load("/Users/amograo/Desktop/HIE-BONBID-24/UPP-inceptionv4-Aug-Stacked/models/model_epoch_191_inceptionv4_3d.pth",map_location=torch.device(DEVICE))
 model.load_state_dict(checkpoint['model_state_dict'])
 model_2.load_state_dict(checkpoint_2['model_state_dict'])
 
@@ -70,20 +104,20 @@ for uid in uids:
         output_2 = model_2(image)
         pred_1 = (output >= 0.5).float()
         pred_2 = (output_2 >= 0.5).float()
-        # pred = (output * output_2)
 
-        pred = ((output + output_2) >= 1).float()
-      
-        # pred = ((output + output_2) >= 1).float()
-        # # pred = (output + >= 0.5).float()
+        pred = np.logical_or(pred_1.detach().cpu().numpy()[0],pred_2.detach().cpu().numpy()[0]).astype(int)
+        # pred = ((pred_1 + pred_2) >= 1).float()
+
+        # pred = (((output + output_2) / 2) >= 0.6).float()
+        # pred = ((0.7*output + 0.3*output_2) >= 0.5).float()
 
         # print(image_set[0].shape)
         # print(list(image_set[0].shape))
         shape = image_set[0].shape
         shape = (1,shape[1],shape[2])
         # print(shape)
-
-        preds_3d[uid].append(padding(pred.detach().cpu().numpy()[0],target_size=tuple(shape))[0])    
+        preds_3d[uid].append(padding(pred,target_size=tuple(shape))[0])
+        # preds_3d[uid].append(padding(pred.detach().cpu().numpy()[0],target_size=tuple(shape))[0])    
 
 
         # print(pred.shape)
@@ -93,6 +127,7 @@ for uid in uids:
             dice = monai.metrics.DiceMetric(include_background=True,ignore_empty=False)
             masd = monai.metrics.SurfaceDistanceMetric(include_background=False, symmetric = True)
             nsd = monai.metrics.SurfaceDiceMetric(include_background=False, distance_metric="euclidean", class_thresholds=[2])
+            # show_all_slices_in_grid(masks_3d[uid],preds_3d[uid])
             preds_mask = torch.tensor(preds_3d[uid]).unsqueeze(0).unsqueeze(0)
             true_mask = torch.tensor(masks_3d[uid]).unsqueeze(0).unsqueeze(0)
             print(uid)

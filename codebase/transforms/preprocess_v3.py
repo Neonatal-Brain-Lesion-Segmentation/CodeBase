@@ -76,55 +76,6 @@ Resampling (D x H x W)
 2. Linear Interpolation (Order = 1)
 3. Spline Interpolation (Order = 7) 
 '''
-def resample(data:np.ndarray, # Input Data (D x H x W), where D = 1 (2D) or D > 1 (3D)
-             target_shape:tuple[int, ...], # If 2D (H x W), If 3D (D x H x W) Accepted
-             input_spacing:tuple[float, float, float], # Spacing [Axial, Coronal, Sagittal]
-             mode: str = '2D' or '3D', # Mode (2D or 3D)
-             interpolate_order: int = 0, # Interpolation Order (0: Nearest Neighbor, 1: Trilinear, 2: Tri-Bicubic, 3: Tri-Quartic)
-             interpolation_mode: str = 'constant', # Interpolation Mode - To handle 
-             interpolation_cval: float = 0.0) -> tuple[np.ndarray, tuple[float, float, float]]:
-    """
-    Resampling (Up and Downsampling) 2D Slices and 3D Volumes to a Target Shape (D x H x W) by Interpolation Methods (Nearest Neighbor, Linear, Spline)
-    Args:
-        mode (str): Input Data Type - '2D' or '3D'
-        data (np.ndarray): Input Array
-            - For 2D: shape (1 x H x W)
-            - For 3D: shape (D x H x W)
-        target_shape (tuple[int, ...]): Target Dimensions
-            - For 2D: (H x W)
-            - For 3D: (D x H x W)
-        input_spacing (tuple[float, float, float], optional): Voxel Spacing [Axial, Coronal, Sagittal])
-        interpolate_order (int, optional): (Default: 0)
-            - 0: Nearest Neighbor interpolation
-            - 1: Trilinear interpolation
-            - 2: Tri-Bicubic interpolation
-            - 3: Tri-Quartic interpolation
-        interpolation_mode (str, optional): How to handle values outside the grid? (Default: 'constant')
-            Options: 'constant', 'nearest', 'reflect', 'mirror', 'wrap'
-        interpolation_cval (float, optional): Value to be filled past edges if mode is 'constant' (Default: 0.0)
-
-    Returns:
-        tuple[np.ndarray, tuple[float, float, float]]: Tuple(Resampled Image, Updated Spacing)
-            - resampled_image (np.ndarray): Resampled Array with Output Dimensions
-                - For 2D: shape (1 x target_H x target_W)
-                - For 3D: shape (target_D x target_H x target_W)
-            - output_spacing (tuple[float, float, float]): Updated Spacing after Resampling [Axial, Coronal, Sagittal]
-    """
-    # Shape of the Input Data (2D [1 x H x W] or 3D [D x H x W])
-    D, H, W = data.shape
-
-    # If 2D, Add a Channel Dimension (1 x H x W)
-    if mode.upper() == '2D' and D == 1:
-        target_shape = (D, *target_shape)
-
-    # Scaling Factor for Resampling
-    scale_factor = tuple(t / o for t, o in zip(target_shape, data.shape))
-    # Interpolate
-    resampled_image = zoom(input = data, zoom = scale_factor, order = interpolate_order, mode = interpolation_mode, cval = interpolation_cval)
-    # Update Spacing
-    output_spacing = tuple(os / sf for os, sf in zip(input_spacing, scale_factor))
-
-    return (resampled_image, output_spacing)
 
 def min_max_normalize(data:np.ndarray, mode:str) -> np.ndarray:
     """
@@ -151,7 +102,8 @@ def transform_2d_inner(input_array: np.ndarray, mode_list: list[str]) -> torch.T
     if input_array.shape[0] != len(mode_list):
         raise ValueError(f"Invalid Input Array Shape: {input_array.shape} for Mode List: {mode_list}")
     
-    padded = padding(input_array)
+    # padded = padding(input_array)
+    padded = resample(input_array)
 
     new = []
     for idx, mode in enumerate(mode_list):
@@ -209,3 +161,23 @@ def augment(image_tensor: torch.Tensor, mask_tensor: torch.Tensor|None = None, u
         return transformed_image.squeeze(1), transformed_mask.squeeze(1)
     
     return transformed_image.squeeze(1)
+
+def resample(data:np.ndarray, # Input Data (C x H x W)
+             target_shape:tuple[int, ...]=(2, 256, 256), # Target Shape (C x H x W)
+             mode: str = '2D', # Input Data Type (2D or 3D)
+             interpolate_order: int = 0, # Interpolation Order (0: Nearest Neighbor, 1: Trilinear, 2: Tri-Bicubic, 3: Tri-Quartic)
+             interpolation_mode: str = 'constant', # Interpolation Mode - To handle 
+             interpolation_cval: float = 0.0) -> tuple[np.ndarray, tuple[float, float, float]]:
+    """
+    Resample the Input Data to the Target Shape using the specified Interpolation Order and Mode
+    """
+    # Shape of the Input Data (2D [1 x H x W] or 3D [D x H x W])
+    C, H, W = data.shape
+
+    # Scaling Factor for Resampling
+    scale_factor = tuple(t / o for t, o in zip(target_shape, data.shape))
+
+    # Interpolate
+    resampled_image = zoom(input = data, zoom = scale_factor, order = interpolate_order, mode = interpolation_mode, cval = interpolation_cval)
+
+    return resampled_image
