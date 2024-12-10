@@ -53,7 +53,7 @@ print(DEVICE)
 # ENCODER = "se_resnext101_32x4d"
 # ENCODER = "densenet161"
 ENCODER = "inceptionv4"
-DATA_ROOT = "/Users/amograo/Desktop/DATASET"
+DATA_ROOT = "/Users/amograo/Desktop/DATASET Copy"
 TV ="BONBID2024_Val"
 
 print(ENCODER)
@@ -61,7 +61,7 @@ print(ENCODER)
 model = smp.UnetPlusPlus(
     encoder_name=ENCODER,
     encoder_weights=None,
-    in_channels=2,
+    in_channels=3,
     classes=1,
     activation='sigmoid',
     decoder_attention_type='scse'
@@ -70,7 +70,8 @@ model = smp.UnetPlusPlus(
 
 model.to(DEVICE)
 # 125, 
-checkpoint = torch.load("/Users/amograo/Desktop/HIE-BONBID-24/UPPr-inceptionv4-TLHF-D1/models/model_epoch_169_inceptionv4_3d.pth", map_location=torch.device(DEVICE)) 
+checkpoint = torch.load("/Users/amograo/Desktop/HIE-BONBID-24/UPP-3C-inceptionv4-TLHF-D0-Winit-NewSplit/models/model_epoch_121_inceptionv4_3d.pth",map_location=torch.device(DEVICE))
+# checkpoint = torch.load("/Users/amograo/Desktop/HIE-BONBID-24/UPPr-inceptionv4-TLHF-D1/models/model_epoch_170_inceptionv4_3d.pth", map_location=torch.device(DEVICE)) 
 # checkpoint = torch.load("/Users/amograo/Desktop/HIE-BONBID-24/UNetPlusPlus-inceptionv4-ResizeAug-SCSE-TLHF/models/model_epoch_95_inceptionv4.pth",map_location=torch.device(DEVICE))  
 # checkpoint = torch.load("/Users/amograo/Desktop/HIE-BONBID-24/UPP-inceptionv4-Aug-Stacked/models/model_epoch_191_inceptionv4_3d.pth",map_location=torch.device(DEVICE))
 
@@ -89,14 +90,15 @@ for name, param in model.named_parameters():
 
 
 
-df = pd.read_csv(f'{DATA_ROOT}/{TV}/metadata.csv')
+df = pd.read_csv(f'{DATA_ROOT}/metadata_val.csv')
 # column Lesion Percentatge must be less than 1.5 and greater than 0
 # df = df[(df['Lesion Percentage'] < 200) & (df['Lesion Percentage'] > 0)]
 uids = [str(i).zfill(3) for i in df["Patient ID"].tolist()]
+# uids = ['002', '302', '436', '001']
 print(uids)
 
 preds_3d = {i: [] for i in uids}
-masks_3d = {uid: reassemble_to_3d(f'{DATA_ROOT}/{TV}/LABEL', uid) for uid in uids}
+masks_3d = {uid: reassemble_to_3d(f'{DATA_ROOT}/LABEL', uid) for uid in uids}
 
 
 #######
@@ -105,14 +107,15 @@ dice_l = []
 masd_l = []
 nsd_l = []
 model.eval()
-image_paths = [f'{DATA_ROOT}/{TV}/ADC',f'{DATA_ROOT}/{TV}/Z_ADC'] #f'{DATA_ROOT}/{TV}/ADC',
+# image_paths = [f'{DATA_ROOT}/{TV}/ADC',f'{DATA_ROOT}/{TV}/Z_ADC'] #f'{DATA_ROOT}/{TV}/ADC',
+image_paths = [f'{DATA_ROOT}/Z_ADC',f'{DATA_ROOT}/Z_ADC',f'{DATA_ROOT}/ADC']
 for uid in uids:
     image_set = [reassemble_to_3d(path, uid) for path in image_paths]
     # image_set = reassemble_to_3d(f'{DATA_ROOT}/{TV}
     #/Z_ADC', uid)
 
     for i in range(image_set[0].shape[0]):
-        image = np.expand_dims(transform_2d_inner(np.stack([image_set[j][i] for j in range(len(image_set))]),['ADC','Z_ADC']),axis=0)
+        image = np.expand_dims(transform_2d_inner(np.stack([image_set[j][i] for j in range(len(image_set))]),['ZADC','ZADC_Clip','ADC']),axis=0)
         # image = np.expand_dims(resample(np.stack([image_set[i]])),axis=0)
 
         image = torch.tensor(image).to(DEVICE)
@@ -142,7 +145,7 @@ for uid in uids:
             masd = monai.metrics.SurfaceDistanceMetric(include_background=False, symmetric = True)
             nsd = monai.metrics.SurfaceDiceMetric(include_background=False, distance_metric="euclidean", class_thresholds=[2])
             # if uid == '001':
-            show_all_slices_in_grid(masks_3d[uid],preds_3d[uid])
+            # show_all_slices_in_grid(masks_3d[uid],preds_3d[uid])
             preds_mask = torch.tensor(preds_3d[uid]).unsqueeze(0).unsqueeze(0)
             true_mask = torch.tensor(masks_3d[uid]).unsqueeze(0).unsqueeze(0)
             print(uid)
