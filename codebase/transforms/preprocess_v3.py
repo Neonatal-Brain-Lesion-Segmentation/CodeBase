@@ -32,6 +32,8 @@ def clip(mode:str, data:np.ndarray, min_clip:int = 0, max_clip:int = 3400) -> np
     """
     if mode.upper() == 'ADC':
         return np.clip(data, min_clip, max_clip)
+    elif mode.upper() == 'ZADC_CLIP':
+        return np.where(data<-2, 1, 0)
     else:
         return data
     
@@ -76,12 +78,31 @@ Resampling (D x H x W)
 2. Linear Interpolation (Order = 1)
 3. Spline Interpolation (Order = 7) 
 '''
+def resample(data:np.ndarray, # Input Data (C x H x W)
+             target_shape:tuple[int, ...]=(3, 256, 256), # Target Shape (C x H x W)
+             mode: str = '2D', # Input Data Type (2D or 3D)
+             interpolate_order: int = 0, # Interpolation Order (0: Nearest Neighbor, 1: Trilinear, 2: Tri-Bicubic, 3: Tri-Quartic)
+             interpolation_mode: str = 'constant', # Interpolation Mode - To handle 
+             interpolation_cval: float = 0.0) -> tuple[np.ndarray, tuple[float, float, float]]:
+    """
+    Resample the Input Data to the Target Shape using the specified Interpolation Order and Mode
+    """
+    # Shape of the Input Data (2D [1 x H x W] or 3D [D x H x W])
+    C, H, W = data.shape
+
+    # Scaling Factor for Resampling
+    scale_factor = tuple(t / o for t, o in zip(target_shape, data.shape))
+
+    # Interpolate
+    resampled_image = zoom(input = data, zoom = scale_factor, order = interpolate_order, mode = interpolation_mode, cval = interpolation_cval)
+
+    return resampled_image
 
 def min_max_normalize(data:np.ndarray, mode:str) -> np.ndarray:
     """
     Min-Max Normalization of 2D (1 x H x W) and 3D (D x H x W) ADC Maps
     """
-    if mode.upper() == 'ADC':
+    if mode.upper() in ['ADC','ZADC']:
         min_value = np.min(data)
         max_value = np.max(data)
         
@@ -108,8 +129,10 @@ def transform_2d_inner(input_array: np.ndarray, mode_list: list[str]) -> torch.T
     new = []
     for idx, mode in enumerate(mode_list):
         new.append(min_max_normalize(clip(mode,padded[idx]),mode))
+    
+    return torch.tensor(np.array(new)).float()
 
-    return torch.tensor(np.array(new))
+
 
 def transform_2d(input_image: np.ndarray, input_mask: np.ndarray, mode_list: list[str]) -> tuple[torch.Tensor, torch.Tensor]:
     image = transform_2d_inner(input_image, mode_list)
@@ -129,29 +152,33 @@ def augment(image_tensor: torch.Tensor, mask_tensor: torch.Tensor|None = None, u
         7: tio.Compose([tio.transforms.RandomFlip(axes=(0, 1, 2), flip_probability=1.0)]),  # Horizontal Flip, Vertical Flip, and Inversed Stack
         8: tio.Compose([tio.transforms.RandomAnisotropy(downsampling=(1.1, 1.5), p=1.0)]),  # Anisotropy
         9: tio.Compose([tio.transforms.RandomBlur(std=(0, 0.4), p=1.0)]),  # Blur
-        # 10: tio.Compose([tio.transforms.RandomNoise(std=(0, 0.01), p=0.5)]),  # Noise
-        # 11: tio.Compose([tio.transforms.RandomNoise(std=(0, 0.05), p=0.5)]),  # Noise
+        # # 10: tio.Compose([tio.transforms.RandomNoise(std=(0, 0.01), p=0.5)]),  # Noise
+        # # 11: tio.Compose([tio.transforms.RandomNoise(std=(0, 0.05), p=0.5)]),  # Noise
         10: tio.Compose([tio.transforms.RandomGamma(log_gamma=(-0.3, 0.3), p=1.0)]),  # Gamma
         11: tio.Compose([tio.transforms.RandomGamma(log_gamma=(-0.1, 0.1), p=1.0)]),  # Gamma
         12: tio.Compose([tio.transforms.RandomAnisotropy(downsampling=(1.1, 1.5), p=1.0), tio.transforms.RandomFlip(axes=(1), flip_probability=1.0)]),  # Anisotropy and Vertical Flip
         13: tio.Compose([tio.transforms.RandomBlur(std=(0, 0.4), p=1.0), tio.transforms.RandomFlip(axes=(2), flip_probability=1.0)]),  # Blur and Horizontal Flip
-        # 16: tio.Compose([tio.transforms.RandomNoise(std=(0, 0.01), p=0.5), tio.transforms.RandomFlip(axes=(1, 2), flip_probability=1.0)]),  # Noise and Horizontal Flip, Vertical Flip, and Inversed Stack
+        # # 16: tio.Compose([tio.transforms.RandomNoise(std=(0, 0.01), p=0.5), tio.transforms.RandomFlip(axes=(1, 2), flip_probability=1.0)]),  # Noise and Horizontal Flip, Vertical Flip, and Inversed Stack
         14: tio.Compose([tio.transforms.RandomGamma(log_gamma=(-0.3, 0.3), p=1.0), tio.transforms.RandomFlip(axes=(0, 1, 2), flip_probability=1.0)]),  # Gamma and Horizontal Flip, Vertical Flip, and Inversed Stack
         15: tio.Compose([tio.transforms.RandomGamma(log_gamma=(-0.1, 0.1), p=1.0), tio.transforms.RandomFlip(axes=(0, 1), flip_probability=1.0)])  # Gamma and Horizontal Flip, Vertical Flip, and Inversed Stack
     }
 
+    # print('1')
     image_tensor = image_tensor.unsqueeze(1) if unsqueeze else image_tensor
     image = tio.ScalarImage(tensor=image_tensor)  # For continuous values
     subject_dict = {'image': image}
 
+    # print('2')
     if mask_tensor is not None:
         mask_tensor = mask_tensor.unsqueeze(1) if unsqueeze else mask_tensor
         mask = tio.LabelMap(tensor=mask_tensor)      # For labels or masks
         subject_dict['mask'] = mask
     
+    # print('3')
     subject = tio.Subject(subject_dict)
-
+    # print('4')
     random_key = random.randint(0, len(augmentation_choices) - 1)
+    # print(random_key)
     transformed_subject = augmentation_choices[random_key](subject)
 
     transformed_image = transformed_subject['image'].data
@@ -162,22 +189,26 @@ def augment(image_tensor: torch.Tensor, mask_tensor: torch.Tensor|None = None, u
     
     return transformed_image.squeeze(1)
 
-def resample(data:np.ndarray, # Input Data (C x H x W)
-             target_shape:tuple[int, ...]=(2, 256, 256), # Target Shape (C x H x W)
-             mode: str = '2D', # Input Data Type (2D or 3D)
-             interpolate_order: int = 0, # Interpolation Order (0: Nearest Neighbor, 1: Trilinear, 2: Tri-Bicubic, 3: Tri-Quartic)
-             interpolation_mode: str = 'constant', # Interpolation Mode - To handle 
-             interpolation_cval: float = 0.0) -> tuple[np.ndarray, tuple[float, float, float]]:
+def transform_2d_inner_image(input_array: np.ndarray, mode_list: list[str]) -> torch.Tensor:
     """
-    Resample the Input Data to the Target Shape using the specified Interpolation Order and Mode
+        Preprocessing Pipeline for 2D ADC Maps
+        Args:
+            input_array (np.ndarray): Input Array (D x H x W)
+            mode_list (list[str]): List of Modes for each Slice
+
+        Returns:
+            torch.Tensor: Preprocessed Tensor (D x H x W)
     """
-    # Shape of the Input Data (2D [1 x H x W] or 3D [D x H x W])
-    C, H, W = data.shape
+    if input_array.shape[0] != len(mode_list):
+        raise ValueError(f"Invalid Input Array Shape: {input_array.shape} for Mode List: {mode_list}")
+    
+    padded = padding(input_array)
 
-    # Scaling Factor for Resampling
-    scale_factor = tuple(t / o for t, o in zip(target_shape, data.shape))
-
-    # Interpolate
-    resampled_image = zoom(input = data, zoom = scale_factor, order = interpolate_order, mode = interpolation_mode, cval = interpolation_cval)
-
-    return resampled_image
+    new = []
+    for idx, mode in enumerate(mode_list):
+        new.append(min_max_normalize(clip(mode,padded[idx]),mode))
+    
+    # dummy = np.zeros((1, 256, 256))
+    # new = np.concatenate((new, dummy), axis=0).astype(np.float32)
+    
+    return torch.tensor(np.array(new))
