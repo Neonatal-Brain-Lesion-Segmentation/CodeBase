@@ -70,7 +70,7 @@ model = smp.UnetPlusPlus(
 
 model.to(DEVICE)
 # 125, 
-checkpoint = torch.load("/Users/amograo/Desktop/HIE-BONBID-24/UPP-3C-inceptionv4-TLHF-D0-Winit-NewSplit/models/model_epoch_121_inceptionv4_3d.pth",map_location=torch.device(DEVICE))
+checkpoint = torch.load("/Users/amograo/Desktop/HIE-BONBID-24/UPP-3C-inceptionv4-TLHF-D0-Winit-NewSplit/models/model_epoch_204_inceptionv4_3d.pth",map_location=torch.device(DEVICE))
 # checkpoint = torch.load("/Users/amograo/Desktop/HIE-BONBID-24/UPPr-inceptionv4-TLHF-D1/models/model_epoch_170_inceptionv4_3d.pth", map_location=torch.device(DEVICE)) 
 # checkpoint = torch.load("/Users/amograo/Desktop/HIE-BONBID-24/UNetPlusPlus-inceptionv4-ResizeAug-SCSE-TLHF/models/model_epoch_95_inceptionv4.pth",map_location=torch.device(DEVICE))  
 # checkpoint = torch.load("/Users/amograo/Desktop/HIE-BONBID-24/UPP-inceptionv4-Aug-Stacked/models/model_epoch_191_inceptionv4_3d.pth",map_location=torch.device(DEVICE))
@@ -139,8 +139,8 @@ for uid in uids:
         # print(np.array(preds_3d[uid]).shape)
         if len(preds_3d[uid]) == image_set[0].shape[0]:
             preds_3d[uid] = np.stack(preds_3d[uid])
-            print("Original Volume: ",brain_lesion_percentage(image_set[0],masks_3d[uid]))  
-            print("Predicted Volume: ",brain_lesion_percentage(image_set[0],preds_3d[uid]))  
+            print("Original Volume: ",brain_lesion_percentage(image_set[2],masks_3d[uid]))  
+            print("Predicted Volume: ",brain_lesion_percentage(image_set[2],preds_3d[uid]))  
             dice = monai.metrics.DiceMetric(include_background=True,ignore_empty=False)
             masd = monai.metrics.SurfaceDistanceMetric(include_background=False, symmetric = True)
             nsd = monai.metrics.SurfaceDiceMetric(include_background=False, distance_metric="euclidean", class_thresholds=[2])
