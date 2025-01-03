@@ -10,7 +10,7 @@ import monai
 
 from data_organization import HIE_Dataset
 from pipeline_utils import *
-from transforms.preprocess_v3 import transform_2d, augment
+from transforms.preprocess_v4 import transform_2d, augment
 from mix_loss import TverskyLogHausdorffFocalLoss
 
 
